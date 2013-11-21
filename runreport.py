@@ -245,7 +245,7 @@ def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
              write_to_dict(row, ttype, notes_name, docs_rec)
              
              
-def late_by_letters_completedoc(sD, eD, scope, procname, cursor):
+def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
     """
     This generic function collects data about specified category and
     sends records with late tickets to be added to dictionary.
@@ -324,7 +324,7 @@ def runReport(sD, eD):
         #Job Changes action tickets
         scope = '315, 331, 323, 335, 340, 339'
         late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
-        late_by_letters_completedoc(sD, eD, scope, procname, cursor)
+        late_by_dates_completedoc(sD, eD, scope, procname, cursor)
         #Job Changes letter tickets
         scope = '363, 385, 386, 400, 399, 410, 412, 413'
         late_by_letters(sD, eD, scope, procname, cursor)
@@ -332,14 +332,14 @@ def runReport(sD, eD):
         #New Hire section
         procname = 'Hire'
         #New Hire tickets
-        scope = ''
+        scope = '371, 372'
         late_by_letters(sD, eD, scope, procname, cursor)
 
         #Pay Changes section
         procname = 'Pay Change'
         #Pay Changes action tickets
-        scope = ''
+        scope = '395, 396, 397, 347'
         late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
-        late_by_letters_completedoc(sD, eD, scope, procname, cursor)
+        late_by_dates_completedoc(sD, eD, scope, procname, cursor)
 
         #Termination section
