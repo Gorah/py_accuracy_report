@@ -57,7 +57,7 @@ def count_days(row):
         return 0
 
 
-def write_to_dict(row, ttype, notes_name, docs_rec):
+def write_to_dict(row, ttype, notes_name, docs_rec, notes_override):
     """
     This function fills dictionary with a new entry (which is another
     dictionary containing all the necessary data)
@@ -66,9 +66,14 @@ def write_to_dict(row, ttype, notes_name, docs_rec):
     #new empty dictionary is created to store ticket data in it
     case_descr = {}
     case_descr['type'] = ttype
-    case_descr['notes'] = notes_name + row.EffectiveDate
-    + docs_rec + '. Days late for payroll cut off: ' + count_days(row)
-    + '. ' + row.EEImpact + '.'
+    #This allows overriding default notes script overriding
+    if notes_override:
+        case_descr['notes'] = notes_override
+    else:    
+        case_descr['notes'] = notes_name + row.EffectiveDate
+        + docs_rec + '. Days late for payroll cut off: ' + count_days(row)
+        + '. ' + row.EEImpact + '.'
+        
     case_descr['eename'] = row.Surname + ' ' + row.Forename  
     case_descr['eeid'] = row.EEID
     case_descr['hrbp'] = row.HRBP
@@ -96,6 +101,7 @@ def contract_exp_by_dates(sD, eD, cursor):
              (T.CutOffDate < T.DateReceived))"""
     ttype = 'Contract Expiration - Late Renewal Submission'
     notes_name = 'Contract End date '
+    notes_override = None
 
     #getting recordset from DB    
     result = get_DBdata(sql, sD, eD, cursor)
@@ -112,7 +118,7 @@ def contract_exp_by_dates(sD, eD, cursor):
             else:
                 docs_rec = '. Complete documenst still pending'
                 
-            write_to_dict(row, ttype, notes_name, docs_rec)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
 
 
 def contract_exp_by_letters(sD, eD, cursor):
@@ -137,6 +143,7 @@ def contract_exp_by_letters(sD, eD, cursor):
               AND T.LetterReceived = 0 ))"""
     notes_name = 'Contract End date '
     docs_rec = ''
+    notes_override = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -153,7 +160,7 @@ def contract_exp_by_letters(sD, eD, cursor):
             else:
                 ttype = 'Contract Expiration - Late Renewal Submission'
 
-            write_to_dict(row, ttype, notes_name, docs_rec)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
 
 
 def loa_by_dates(sD, eD, cursor):
@@ -174,6 +181,7 @@ def loa_by_dates(sD, eD, cursor):
     notes_name = 'LOA effective '
     ttype = 'Leave of Absence - Late Submission'
     docs_rec = '. PCR Received on '
+    notes_override = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -182,7 +190,7 @@ def loa_by_dates(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
 
 
 def ret_from_loa_by_dates(sD, eD, cursor):            
@@ -202,6 +210,7 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     notes_name = 'Return effective '
     ttype = 'Return from Leave - Late Submission'
     docs_rec = '. PCR Received on '
+    notes_override = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -210,7 +219,7 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
     
 
 def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
@@ -234,6 +243,7 @@ def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
      notes_name = procname + ' effective '
      ttype = procname + ' - Late Submission'
      docs_rec = '. Complete info still pending'
+     notes_override = None
 
      #getting recordset from DB
      result = get_DBdata(sql, sD, eD, cursor)
@@ -242,7 +252,7 @@ def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
      #added to dictionary
      if result:
          for row in result:
-             write_to_dict(row, ttype, notes_name, docs_rec)
+             write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
              
              
 def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
@@ -265,6 +275,7 @@ def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
              IS NOT NULL"""
     notes_name = procname + ' effective '
     ttype = procname + ' - Late Submission'
+    notes_override = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -274,7 +285,7 @@ def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
     if result:
         for row in result:
             docs_rec = '. Complete info received on ' + row.CompleteDocsDate
-            write_to_dict(row, ttype, notes_name, docs_rec)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
 
 
 def late_by_letters(sD, eD, scope, procname, cursor):
@@ -296,6 +307,7 @@ def late_by_letters(sD, eD, scope, procname, cursor):
     notes_name = procname + ' effective '
     ttype = procname + ' - Missing Documentation'
     docs_rec = '. Complete info still pending'
+    notes_override = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -304,10 +316,35 @@ def late_by_letters(sD, eD, scope, procname, cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+
+
+def termination_checklist_check(cursor):
+    """
+    This function finds all unsubmitted termination checklists and
+    feeds them into dictionary.
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
+             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, 
+             E.Surname, T.LetterReceived FROM tTracker as T INNER JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID 
+             WHERE (T.ProcessID = 417) AND (T.LetterReceived = 0)"""
+    notes_name = ''
+    ttype = 'Termination -  No Termination Checklist submitted'
+    docs_rec = ''
+    notes_override = 'Possible SOX audit compliance issue'
+    
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    #if there are any records in the recordset each row is sent to be
+    #added to dictionary
+    if result:
+        for row in result:
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
             
 
-             
 def runReport(sD, eD):
 
     with get_connection() as cursor:
@@ -347,3 +384,12 @@ def runReport(sD, eD):
 
 
         #Termination section
+        procname = 'Termination'
+        #Termination actions
+        scope = '336, 337, 338'
+        late_by_dates_completedoc(sD, eD, scope, procname, cursor)
+        late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
+        #Termination checklist
+        termination_checklist_check(cursor)
+
+        
