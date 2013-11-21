@@ -338,8 +338,12 @@ def runReport(sD, eD):
         #Pay Changes section
         procname = 'Pay Change'
         #Pay Changes action tickets
-        scope = '395, 396, 397, 347'
+        scope = '327, 328, 329'
         late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
         late_by_dates_completedoc(sD, eD, scope, procname, cursor)
+        #Pay Changes letter tickets
+        scope = '395, 396, 397, 347'
+        late_by_letters(sD, eD, scope, procname, cursor)
+
 
         #Termination section
