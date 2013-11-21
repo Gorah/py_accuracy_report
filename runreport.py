@@ -345,6 +345,26 @@ def termination_checklist_check(cursor):
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
             
 
+def write_to_file():
+    """
+    This function saves report to csv file
+    """
+    
+    #Open file to save report to
+    report = open('report.csv', 'w')
+    for key in LATE_CASES:
+        #build file entry row from dict data
+        fileentry = key + ',' + LATE_CASES[key]['type'] + ','
+        + LATE_CASES[key]['notes'] + ',' + LATE_CASES[key]['eename']
+        + ',' + LATE_CASES[key]['eeid'] + ',' + LATE_CASES[key]['hrbp']
+
+        #write etry to file
+        report.write(fileentry + '\n')
+
+    #close the file    
+    report.close()
+    
+            
 def runReport(sD, eD):
 
     with get_connection() as cursor:
@@ -391,5 +411,11 @@ def runReport(sD, eD):
         late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
         #Termination checklist
         termination_checklist_check(cursor)
+
+        #Save the report to file
+        write_to_file()
+
+        
+        
 
         
