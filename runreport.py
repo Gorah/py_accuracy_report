@@ -4,6 +4,7 @@
 import pyodbc
 import datetime
 import sys
+import re
 from contextlib import contextmanager
 
 LATE_CASES = {}
@@ -24,40 +25,57 @@ def get_DBdata(sql, sD, eD, cursor):
     This function takes SQL string and connection object and returns
     rowset with data
     """
-
-    cursor.execute(sql, sD, eD)
+    if(sD):
+        cursor.execute(sql, sD, eD)
+    else:
+        cursor.execute(sql)
+        
     try:
         rows = cursor.fetchall()
     except Error as err:
         rows = None
+        print err.strerror
+        sys.exit(0)
 
     return rows
 
 
-def count_days(row):
+def count_days(row, userecdate=False):
     """
     This function calculates number of days between Cut Off Date and
     date of receiving complete documents.
     """
-    cutD = datetime.datetime.strptime(row.CutOffDate,
-                                      '%Y-%m-%d %H:%M:%S')
+    cutD = row.CutOffDate
 
-    #if CompleteDocsDate is missing, use current date instead
-    if row.CompleteDocsDate:
-        recD = datetime.datetime.strptime(row.CompleteDocsDate,
-                                      '%Y-%m-%d %H:%M:%S')
-    else:
-        recD = datetime.datetime.now()
+    if userecdate:
+        recD = row.DateReceived
+    else:    
+        #if CompleteDocsDate is missing, use current date instead
+        try:
+            recD = row.CompleteDocsDate
+        except AttributeError:
+            recD = datetime.datetime.now()
+            
+        if not recD:
+            recD = datetime.datetime.now()
+        
+    return day_diff(recD, cutD)
+            
 
-    days = (recD - cutD).days
-    #return number of days or 0 if number of days is negative
+def day_diff(date1, date2):
+    """
+    This function returns difference in days between 2 dates.
+    """
+
+    days = (date1 - date2).days +1
     if days > 0:
-        return  days
+        return days
     else:
         return 0
 
+    
 
-def write_to_dict(row, ttype, notes_name, docs_rec, notes_override):
+def write_to_dict(row, ttype, notes_name, docs_rec, notes_override, userecdate, skip_date_rec = False):
     """
     This function fills dictionary with a new entry (which is another
     dictionary containing all the necessary data)
@@ -67,16 +85,44 @@ def write_to_dict(row, ttype, notes_name, docs_rec, notes_override):
     case_descr = {}
     case_descr['type'] = ttype
     #This allows overriding default notes script overriding
+
+    
+    
     if notes_override:
         case_descr['notes'] = notes_override
-    else:    
-        case_descr['notes'] = notes_name + row.EffectiveDate
-        + docs_rec + '. Days late for payroll cut off: ' + count_days(row)
-        + '. ' + row.EEImpact + '.'
+    elif skip_date_rec:
+        if not row.CutOffDate:
+            cutoff = datetime.datetime.now().strftime('%d/%m/%Y')
+        else:
+            cutoff = row.CutOffDate.strftime('%d/%m/%Y')
+            
+        case_descr['notes'] = ('"%s%s%s.\n%s%s.\nDays late for payroll cut off: %d.\n%s."' %
+                               (notes_name, row.EffectiveDate.strftime('%d/%m/%Y'),
+                                docs_rec, 'Request should by submitted by ',
+                                cutoff, count_days(row, userecdate), row.EEImpact))
+    else:
+        if not row.CutOffDate:
+            cutoff = datetime.datetime.now().strftime('%d/%m/%Y')
+        else:
+            cutoff = row.CutOffDate.strftime('%d/%m/%Y')
+            
+        case_descr['notes'] = ('"%s%s%s%s.\n%s%s.\nDays late for payroll cut off: %d.\n%s."' %
+                               (notes_name,
+                                row.EffectiveDate.strftime('%d/%m/%Y'),
+                                docs_rec,
+                                row.DateReceived.strftime('%d/%m/%Y'),
+                                'Request should by submitted by ',
+                                cutoff,
+                                count_days(row, userecdate),
+                                row.EEImpact)
+        )
         
-    case_descr['eename'] = row.Surname + ' ' + row.Forename  
+    if not row.Forname:
+        forename = ' '
+    else:
+        forename = row.Forname
+    case_descr['eename'] = row.Surname + ' ' + forename  
     case_descr['eeid'] = row.EEID
-    case_descr['hrbp'] = row.HRBP
 
     #new dictionary is appended to general dict under ticket ID as key
     LATE_CASES[row.ID] = case_descr
@@ -91,14 +137,12 @@ def contract_exp_by_dates(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, E.Surname 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID
              WHERE (T.ProcessID IN (262, 330)) AND
              (T.DateReceived BETWEEN ? AND ?) AND 
-             (T.CurrentStatus IN (1, 9)) AND
-             ((T.EffectiveDate < T.DateReceived) OR
-             (T.CutOffDate < T.DateReceived))"""
+             (T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived)"""
     ttype = 'Contract Expiration - Late Renewal Submission'
     notes_name = 'Contract End date '
     notes_override = None
@@ -114,11 +158,12 @@ def contract_exp_by_dates(sD, eD, cursor):
     if result:
         for row in result:
             if row.CompleteDocsDate:
-                docs_rec = '. Complete documents received on ' + row.CompleteDocsDate
+                docs_rec = '.\nComplete documents received on '
             else:
-                docs_rec = '. Complete documenst still pending'
-                
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+                docs_rec = '.\nComplete documenst still pending'
+
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)                
+            
 
 
 def contract_exp_by_letters(sD, eD, cursor):
@@ -130,19 +175,17 @@ def contract_exp_by_letters(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, 
+             T.NumberOfReminders, E.EEID, E.Forname, 
              E.Surname, T.LetterReceived FROM tTracker as T INNER JOIN 
              tMCBCEmployee as E ON T.EeID = E.ID 
-             WHERE (T.ProcessID IN (349, 351, 352, 350, 383, 399)) AND 
+             WHERE T.ProcessID IN (349, 351, 352, 350, 383, 399) AND 
              (T.DateReceived BETWEEN ? AND ?) AND
-             (T.CurrentStatus IN (1, 9)) AND
-             ((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate) 
-              OR (T.EffectiveDate < GETDATE()
+             (T.EffectiveDate < T.CompleteDocsDate OR
+             T.CutOffDate < T.CompleteDocsDate OR (T.EffectiveDate < GETDATE()
               AND T.LetterReceived = 0 ) OR (T.CutOffDate < GETDATE()
-              AND T.LetterReceived = 0 ))"""
+              AND T.LetterReceived = 0 )) """
     notes_name = 'Contract End date '
-    docs_rec = ''
+    docs_rec = '\nPCR received on '
     notes_override = None
 
     #getting recordset from DB
@@ -155,43 +198,81 @@ def contract_exp_by_letters(sD, eD, cursor):
     """
     if result:
         for row in result:
-            if row.LetterReceived = 0:
+            if row.LetterReceived == 0:
                 ttype = 'Contract Expiration - No Response'
+                today = datetime.datetime.now()
+                notes_override = ('"%s%s.\n%s%s.\n%s%d.\n%s"' % ('Contract End date ',
+                                                               row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                               'Request should be submitted by ',
+                                                               row.CutOffDate.strftime('%d/%m/%Y'),
+                                                               'Days late for payroll cut off: ',
+                                                               day_diff(today, row.CutOffDate),
+                                                               row.EEImpact))
             else:
                 ttype = 'Contract Expiration - Late Renewal Submission'
+                if row.CompleteDocsDate:
+                    docs_rec = ('%s%s' % ('.\nComplete documents received on ',
+                                          row.CompleteDocsDate.strftime('%d/%m/%Y')))
+                else:
+                    docs_rec = '.\nComplete documenst still pending'
 
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
 
 
-def loa_by_dates(sD, eD, cursor):
+def late_loa(sD, eD, cursor):
     """
-    This function collects data about LOA category and sends records
-    with late tickets to be added to dictionary.
+    This function finds late loa cases
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
-             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, E.Surname 
+             T.EEImpact, E.EEID, E.Forname, E.Surname, P.ProcessName 
              FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tProcess as P ON T.ProcessID = P.ID
              WHERE (T.ProcessID IN (246, 261, 264, 282, 284, 289, 305,
              306, 326, 341)) AND 
-             (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN
-             (1, 9)) AND ((T.EffectiveDate < T.DateReceived) OR
-             (T.CutOffDate < T.DateReceived))"""
-    notes_name = 'LOA effective '
+             (T.DateReceived BETWEEN ? AND ?)"""
     ttype = 'Leave of Absence - Late Submission'
-    docs_rec = '. PCR Received on '
-    notes_override = None
+    notes_name = None
+    docs_rec = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
 
-    #if there are any records in the recordset each row is sent to be
-    #added to dictionary
+    #if there are any records in the recordset they need to be analized if
+    #they are late.
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+            #checks if row is late. if yes adds an entry
+            if check_if_late_loa(row):
+                friday = row.EffectiveDate + datetime.timedelta(days=(4 - row.EffectiveDate.weekday()))
+                notes_override = ('"%s effective %s.\n%s%s.\n%s%s.\n%s%d.\n%s"' % (row.ProcessName,
+                                                                            row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                                            'Request should be submitted by ',
+                                                                            friday.strftime('%d/%m/%Y'),
+                                                                            'Request received on ',
+                                                                            row.DateReceived.strftime('%d/%m/%Y'),
+                                                                            'Days late: ',
+                                                                            day_diff(row.DateReceived, friday),
+                                                                            row.EEImpact))
+                write_to_dict(row, ttype, notes_name, docs_rec, notes_override, True)
 
+
+def check_if_late_loa(row):
+    """
+    This function checks if loa entry is late or not based on business req.
+    """
+
+    #find how many days friday is away from
+    diff = 4 - row.EffectiveDate.weekday()
+    fridayDate = row.EffectiveDate + datetime.timedelta(days=diff)
+
+    #checks if date received is greater than date of Friday in the week when
+    #effective date took place
+    if (row.DateReceived - fridayDate).days > 0:
+        return True
+    else:
+        return False
+    
 
 def ret_from_loa_by_dates(sD, eD, cursor):            
     """
@@ -200,16 +281,16 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, E.Surname 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID
-             WHERE (T.ProcessID = 325)) AND 
+             WHERE (T.ProcessID = 325) AND 
              (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN
              (1, 9)) AND ((T.EffectiveDate < T.DateReceived) OR
              (T.CutOffDate < T.DateReceived))"""
     notes_name = 'Return effective '
     ttype = 'Return from Leave - Late Submission'
-    docs_rec = '. PCR Received on '
+    docs_rec = '.\nPCR Received on '
     notes_override = None
 
     #getting recordset from DB
@@ -219,7 +300,7 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, True)
     
 
 def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
@@ -232,7 +313,7 @@ def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, E.Surname 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID
              WHERE (T.ProcessID IN (""" + scope + """)) AND 
@@ -240,19 +321,19 @@ def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
              AND ((T.EffectiveDate < T.DateReceived) OR
              (T.CutOffDate < T.DateReceived)) AND T.CompleteDocsDate
              IS NULL"""
-     notes_name = procname + ' effective '
-     ttype = procname + ' - Late Submission'
-     docs_rec = '. Complete info still pending'
-     notes_override = None
+    notes_name = procname + ' effective '
+    ttype = procname + ' - Late Submission'
+    docs_rec = '.\nComplete info still pending'
+    notes_override = None
 
-     #getting recordset from DB
-     result = get_DBdata(sql, sD, eD, cursor)
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
 
-     #if there are any records in the recordset each row is sent to be
-     #added to dictionary
-     if result:
-         for row in result:
-             write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+    #if there are any records in the recordset each row is sent to be
+    #added to dictionary
+    if result:
+        for row in result:
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
              
              
 def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
@@ -264,14 +345,14 @@ def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
     documentation received.
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
-             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, E.Surname 
+             T.CutOffDate, T.EEImpact, T.DocsReceivedDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID
              WHERE (T.ProcessID IN (""" + scope + """)) AND 
              (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN (1, 9)) 
-             AND ((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate)) AND T.CompleteDocsDate
+             AND ((T.EffectiveDate < T.DocsReceivedDate) OR
+             (T.CutOffDate < T.DocsReceivedDate)) AND T.DocsReceivedDate
              IS NOT NULL"""
     notes_name = procname + ' effective '
     ttype = procname + ' - Late Submission'
@@ -284,8 +365,8 @@ def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
     #added to dictionary
     if result:
         for row in result:
-            docs_rec = '. Complete info received on ' + row.CompleteDocsDate
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+            docs_rec = '.\nComplete info received on ' + row.DocsReceivedDate.strftime('%d/%m/%Y')
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
 
 
 def late_by_letters(sD, eD, scope, procname, cursor):
@@ -293,20 +374,20 @@ def late_by_letters(sD, eD, scope, procname, cursor):
     This function finds all the New Hire contracts with missing info
     and loads them to dict.
     """
-     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
-             T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, 
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
+             T.CutOffDate, T.EEImpact, T.DocsReceivedDate, 
+             T.NumberOfReminders, E.EEID, E.Forname, 
              E.Surname, T.LetterReceived FROM tTracker as T INNER JOIN 
              tMCBCEmployee as E ON T.EeID = E.ID 
              WHERE (T.ProcessID IN (""" + scope + """)) AND
              (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN
-             (1, 9)) AND ((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate) OR (T.EffectiveDate < GETDATE()
+             (1, 9)) AND ((T.EffectiveDate < T.DocsReceivedDate) OR
+             (T.CutOffDate < T.DocsReceivedDate) OR (T.EffectiveDate < GETDATE()
               AND T.LetterReceived = 0 ) OR (T.CutOffDate < GETDATE()
               AND T.LetterReceived = 0 ))"""
     notes_name = procname + ' effective '
-    ttype = procname + ' - Missing Documentation'
-    docs_rec = '. Complete info still pending'
+    ttype = procname
+    docs_rec = '.\nComplete info still pending'
     notes_override = None
 
     #getting recordset from DB
@@ -316,8 +397,72 @@ def late_by_letters(sD, eD, scope, procname, cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
 
+def termination_complete_docs(sD, eD, cursor):
+    """
+    This generic function collects data about specified category and
+    sends records with late tickets to be added to dictionary.
+
+    It takes into consideration action in SAP tickets complete
+    documentation received.
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
+             FROM tTracker as T LEFT JOIN
+             tMCBCEmployee as E ON T.EeID = E.ID
+             WHERE T.ProcessID IN (336, 337, 338) AND 
+             (T.DateReceived BETWEEN ? AND ?) 
+             AND (T.EffectiveDate <= T.DateReceived OR
+             (T.CutOffDate < T.DateReceived)) AND T.CompleteDocsDate
+             IS NOT NULL """
+    notes_name = 'Termination effective '
+    ttype = 'Termination - Late Submission'
+    notes_override = None
+
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    #if there are any records in the recordset each row is sent to be
+    #added to dictionary
+    if result:
+        for row in result:
+            docs_rec = '.\nComplete info received on '
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
+
+def termination_missing_docs(sD, eD, cursor):
+    """
+    This generic function collects data about specified category and
+    sends records with late tickets to be added to dictionary.
+
+    It takes into consideration action in SAP tickets with complete
+    documentation not yet received.
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
+             FROM tTracker as T LEFT JOIN
+             tMCBCEmployee as E ON T.EeID = E.ID
+             WHERE T.ProcessID IN (336, 337, 338) AND 
+             (T.DateReceived BETWEEN ? AND ?) 
+             AND (T.EffectiveDate <= T.DateReceived OR
+             (T.CutOffDate < T.DateReceived)) AND T.CompleteDocsDate
+             IS NULL"""
+    notes_name = 'Termination effective '
+    ttype = 'Termination - Late Submission'
+    docs_rec = '.\nComplete info still pending'
+    notes_override = None
+
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    #if there are any records in the recordset each row is sent to be
+    #added to dictionary
+    if result:
+        for row in result:
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
+    
 
 def termination_checklist_check(cursor):
     """
@@ -326,7 +471,7 @@ def termination_checklist_check(cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
-             T.NumberOfReminders, T.HRBP, E.EEID, E.Forname, 
+             T.NumberOfReminders, E.EEID, E.Forname, 
              E.Surname, T.LetterReceived FROM tTracker as T INNER JOIN 
              tMCBCEmployee as E ON T.EeID = E.ID 
              WHERE (T.ProcessID = 417) AND (T.LetterReceived = 0)"""
@@ -336,13 +481,15 @@ def termination_checklist_check(cursor):
     notes_override = 'Possible SOX audit compliance issue'
     
     #getting recordset from DB
+    sD = None
+    eD = None
     result = get_DBdata(sql, sD, eD, cursor)
 
     #if there are any records in the recordset each row is sent to be
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override)
+            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
             
 
 def write_to_file():
@@ -354,10 +501,11 @@ def write_to_file():
     report = open('report.csv', 'w')
     for key in LATE_CASES:
         #build file entry row from dict data
-        fileentry = key + ',' + LATE_CASES[key]['type'] + ','
-        + LATE_CASES[key]['notes'] + ',' + LATE_CASES[key]['eename']
-        + ',' + LATE_CASES[key]['eeid'] + ',' + LATE_CASES[key]['hrbp']
-
+        
+        fileentry = '%d,%s,%s,%s,%d' % (key, LATE_CASES[key]['type'],
+                                            LATE_CASES[key]['notes'],
+                                            LATE_CASES[key]['eename'],
+                                            LATE_CASES[key]['eeid'])
         #write etry to file
         report.write(fileentry + '\n')
 
@@ -372,7 +520,7 @@ def runReport(sD, eD):
         contract_exp_by_dates(sD, eD, cursor)
         contract_exp_by_letters(sD, eD, cursor)
         #LOA section
-        loa_by_dates(sD, eD, cursor)
+        late_loa(sD, eD, cursor)
         #Return From LOA section
         ret_from_loa_by_dates(sD, eD, cursor)
 
@@ -383,11 +531,12 @@ def runReport(sD, eD):
         late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
         late_by_dates_completedoc(sD, eD, scope, procname, cursor)
         #Job Changes letter tickets
-        scope = '363, 385, 386, 400, 399, 410, 412, 413'
+        scope = '363, 385, 386, 400, 410, 412, 413'
+        procname = 'Job Change - Late Submission'
         late_by_letters(sD, eD, scope, procname, cursor)
 
         #New Hire section
-        procname = 'Hire'
+        procname = 'Hires - Missing Documentation'
         #New Hire tickets
         scope = '371, 372'
         late_by_letters(sD, eD, scope, procname, cursor)
@@ -399,6 +548,7 @@ def runReport(sD, eD):
         late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
         late_by_dates_completedoc(sD, eD, scope, procname, cursor)
         #Pay Changes letter tickets
+        procname = 'Pay Change - Late Submission'
         scope = '395, 396, 397, 347'
         late_by_letters(sD, eD, scope, procname, cursor)
 
@@ -406,9 +556,8 @@ def runReport(sD, eD):
         #Termination section
         procname = 'Termination'
         #Termination actions
-        scope = '336, 337, 338'
-        late_by_dates_completedoc(sD, eD, scope, procname, cursor)
-        late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
+        termination_missing_docs(sD, eD, cursor)
+        termination_complete_docs(sD, eD, cursor)
         #Termination checklist
         termination_checklist_check(cursor)
 
@@ -416,6 +565,21 @@ def runReport(sD, eD):
         write_to_file()
 
         
-        
+if __name__ == '__main__':
+    """
+    Program entry point.
+    Command line argument should contain a date in YYYY-MM-DD format
+    """
+    #making sure that date will be passed and in correct format
+    if len(sys.argv) < 3:
+        print "Missing date, please pass it as an argument!"
+        sys.exit()
+    elif not re.match(r"\d{4}-\d{2}-\d{2}", sys.argv[1]):
+        print "Incorrect date format - should be YYYY-MM-DD"
+        sys.exit()
+    elif not re.match(r"\d{4}-\d{2}-\d{2}", sys.argv[2]):
+        print "Incorrect date format - should be YYYY-MM-DD"
+        sys.exit()
 
+    runReport(sys.argv[1], sys.argv[2])
         
