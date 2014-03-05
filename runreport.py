@@ -285,9 +285,7 @@ def ret_from_loa_by_dates(sD, eD, cursor):
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID
              WHERE (T.ProcessID = 325) AND 
-             (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN
-             (1, 9)) AND ((T.EffectiveDate < T.DateReceived) OR
-             (T.CutOffDate < T.DateReceived))"""
+             (T.DateReceived BETWEEN ? AND ?) AND (T.EffectiveDate < T.DateReceived)"""
     notes_name = 'Return effective '
     ttype = 'Return from Leave - Late Submission'
     docs_rec = '.\nPCR Received on '
@@ -300,7 +298,19 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, True)
+            if (row.DateReceived - row.EffectiveDate).days > 0:
+                notes_override = ('"%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s"' %('Return effective on ',
+                                                                       row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                                       'PCR Received on ',
+                                                                       row.DateReceived.strftime('%d/%m/%Y'),
+                                                                       'Request should be submitted by ',
+                                                                       row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                                       'Days late for payroll cut off: ',
+                                                                       day_diff(row.DateReceived, row.EffectiveDate),
+                                                                       row.EEImpact
+                                                                   ))
+                write_to_dict(row, ttype, notes_name, docs_rec, notes_override, True)
+
     
 
 def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
