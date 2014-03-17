@@ -184,10 +184,10 @@ def contract_exp_by_letters(sD, eD, cursor):
              T.CutOffDate < T.CompleteDocsDate OR (T.EffectiveDate < GETDATE()
               AND T.LetterReceived = 0 ) OR (T.CutOffDate < GETDATE()
               AND T.LetterReceived = 0 )) """
-    notes_name = 'Contract End date '
+    notes_name = 'Contract End effective date '
     docs_rec = '\nPCR received on '
     notes_override = None
-
+    
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
     
@@ -201,20 +201,31 @@ def contract_exp_by_letters(sD, eD, cursor):
             if row.LetterReceived == 0:
                 ttype = 'Contract Expiration - No Response'
                 today = datetime.datetime.now()
-                notes_override = ('"%s%s.\n%s%s.\n%s%d.\n%s"' % ('Contract End date ',
+                notes_override = ('"%s%s.\n%s%s.\n%s%d.\n%s"' % (notes_name,
                                                                row.EffectiveDate.strftime('%d/%m/%Y'),
                                                                'Request should be submitted by ',
                                                                row.CutOffDate.strftime('%d/%m/%Y'),
                                                                'Days late for payroll cut off: ',
                                                                day_diff(today, row.CutOffDate),
-                                                               row.EEImpact))
+                                                               row.EEImpact
+                                                             ))
             else:
                 ttype = 'Contract Expiration - Late Renewal Submission'
                 if row.CompleteDocsDate:
-                    docs_rec = ('%s%s' % ('.\nComplete documents received on ',
+                    docs_rec = ('%s%s' % ('Complete documents received on ',
                                           row.CompleteDocsDate.strftime('%d/%m/%Y')))
                 else:
                     docs_rec = '.\nComplete documenst still pending'
+
+                notes_override = ('"%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' % (notes_name,
+                                                                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                                      docs_rec,
+                                                                      'Request should be submitted by ',
+                                                                      row.CutOffDate.strftime('%d/%m/%Y'),
+                                                                      'Days late for cut off: ',
+                                                                      count_days(row),
+                                                                      row.EEImpact
+                                                                  ))    
 
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
 
@@ -376,6 +387,15 @@ def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
     if result:
         for row in result:
             docs_rec = '.\nComplete info received on ' + row.DocsReceivedDate.strftime('%d/%m/%Y')
+            notes_override = ('"%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s"' %(notes_name,
+                                                                   row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                                   'Complete info received on ',
+                                                                   row.DocsReceivedDate.strftime('%d/%m/%Y'),
+                                                                   'Request should be submitted by ',
+                                                                   row.CutOffDate.strftime('%d/%m/%Y'),
+                                                                   'Days late for payroll cut off: ',
+                                                                   day_diff(row.DocsReceivedDate, row.CutOffDate),
+                                                                   row.EEImpact))
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
 
 
