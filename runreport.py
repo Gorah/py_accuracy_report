@@ -688,10 +688,7 @@ def runReport(sD, eD):
         late_by_letters(sD, eD, scope, procname, cursor)
 
         #New Hire section
-        procname = 'Hires - Missing Documentation'
-        #New Hire tickets
-        scope = '371, 372'
-        late_by_letters(sD, eD, scope, procname, cursor)
+        late_hire(sD, eD, cursor)
 
         #Pay Changes section
         procname = 'Pay Change'
