@@ -469,6 +469,87 @@ def late_by_letters(sD, eD, scope, procname, cursor):
         for row in result:
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
 
+
+def late_hire(sD, eD, cursor):
+    """
+    This function finds late hire actions
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , T.LetterReceived,
+             T.LetterSentOn, T.SignedLetterReceivedOn, T.CloseDate, R.CauseText
+             FROM tTracker as T INNER JOIN
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (371, 372) AND 
+            (T.DateReceived BETWEEN ? AND ?)) AND 
+            ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived
+            AND T.CompleteDocsDate IS NULL) OR (T.SignedLetterReceivedOn > T.EffectiveDate) 
+            OR (T.SignedLetterReceivedOn > T.CutOffDate) OR (T.CompleteDocsDate > T.EffectiveDate 
+            OR T.CompleteDocsDate > T.CutOffDate) OR 
+            (T.SignedLetterReceivedOn IS NULL AND (T.CutOffDate < GETDATE() OR 
+	    T.EffectiveDate < GETDATE())))"""
+
+    result = get_DBdata(sql, sD, eD, cursor)
+    ttype = 'Hires - Missing Documentation'
+    
+    if result:
+        for row in result:
+            # if complete documents date is set use it as Complete docs received on
+            # else note that complete docs were not received yet
+            if row.CompleteDocsDate:
+                compDocs = ('"%s%s.\n"' %('Complete documents received on ',
+                                     row.CompleteDocsDate.strftime('%d/%m/%Y')))
+            else:
+                compDocs = '"Complete documents still pending.\n"'
+
+            #create statuses of signed letter received back
+            #basing on date conditions
+            if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
+                sigLetter = ('"%s%s.\n"' % ('Signed contract received on ',
+                                       row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+            elif row.LetterReceived == 1 and not row.SignedLetterReceivedOn:
+                sigLetter = '"Signed contract not yet returned.\n"'
+            elif row.LetterReceived == 0:
+                sigLetter = ''
+
+            #create statuses for  letter sent, offer pack sent based on dates    
+            if row.LetterReceived == 1:
+                letterSent = ('s%s%' % ('Contract sent on ',
+                                        row.LetterSentOn.strftime('%d/%m/%Y')))
+                offPack = ('s%s%' % ('Offer pack sent on ',
+                                     row.CloseDate.strftime('%d/%m/%Y')))
+            else:
+                letterSent = 'Contract not sent yet'
+                offPack = 'Offer pack not sent yet'
+
+            #calculate amount of days late basing on currenn document and contract statuses
+            #and on docs submission date
+            if row.CompleteDocsDate > row.CutOffDate:
+                days = day_diff(row.CutOffDate, row.CompleteDocsDate)
+            elif row.CompleteDocsDate > row.EffectiveDate:
+                days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
+            elif row.SignedLetterReceivedOn > row.CutOffDate:
+                days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+            elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+            #create notes string    
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s%s.\n%s%d.\n%s"' %('New Hire effective on ',
+                                                                 row.EffectiveDate.strftime('%d/%m/%Y'),
+                                                                 compDocs,
+                                                                 LetterSent,
+                                                                 offPack,
+                                                                 sigLetter,
+                                                                 'Request should be submitted by ',
+                                                                 row.CutOffDate.strftime('%d/%m/%Y'),
+                                                                 'Days late: ',
+                                                                 days,
+                                                                 row.EEImpact))
+            #write result to dictionary
+            write_to_dict(row, ttype, notes)
+                
+
 def termination_complete_docs(sD, eD, cursor):
     """
     This generic function collects data about specified category and
