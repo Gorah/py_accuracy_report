@@ -188,8 +188,10 @@ def contract_no_response(sD, eD, cursor):
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
              T.NumberOfReminders, E.EEID, E.Forname, 
-             E.Surname, T.LetterSentOn FROM tTracker as T INNER JOIN 
-             tMCBCEmployee as E ON T.EeID = E.ID 
+             E.Surname, T.LetterSentOn, R.CauseText 
+             FROM tTracker as T INNER JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
+             tRootCause as R ON T.RootCause = R.ID
              WHERE T.ProcessID IN (352, 350, 383, 399) AND 
              (T.DateReceived BETWEEN ? AND ?) AND
              (T.EffectiveDate < GETDATE() AND T.SignedLetterReceivedOn is null)
@@ -562,14 +564,15 @@ def termination_complete_docs(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, R.CauseText 
              FROM tTracker as T LEFT JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
+             tRootCause as R ON T.RootCause = R.ID
              WHERE T.ProcessID IN (336, 337, 338) AND 
              (T.DateReceived BETWEEN ? AND ?) 
              AND (T.EffectiveDate <= T.DateReceived OR
              (T.CutOffDate < T.DateReceived)) AND T.CompleteDocsDate
-             IS NOT NULL """
+             IS NOT NULL"""
     notes_name = 'Termination effective '
     ttype = 'Termination - Late Submission'
     notes_override = None
@@ -594,9 +597,10 @@ def termination_missing_docs(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
-             FROM tTracker as T LEFT JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, R.CauseText 
+             FROM tTracker as T LEFT JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
              WHERE T.ProcessID IN (336, 337, 338) AND 
              (T.DateReceived BETWEEN ? AND ?) 
              AND (T.EffectiveDate <= T.DateReceived OR
@@ -625,8 +629,10 @@ def termination_checklist_check(cursor):
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
              T.NumberOfReminders, E.EEID, E.Forname, 
-             E.Surname, T.LetterReceived FROM tTracker as T INNER JOIN 
-             tMCBCEmployee as E ON T.EeID = E.ID 
+             E.Surname, T.LetterReceived, R.CauseText 
+             FROM tTracker as T INNER JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
+             tRootCause as R ON T.RootCause = R.ID
              WHERE (T.ProcessID = 417) AND (T.LetterReceived = 0)"""
     notes_name = ''
     ttype = 'Termination -  No Termination Checklist submitted'
