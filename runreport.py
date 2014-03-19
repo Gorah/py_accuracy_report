@@ -266,10 +266,11 @@ def late_loa(sD, eD, cursor):
     This function finds late loa cases
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
-             T.EEImpact, E.EEID, E.Forname, E.Surname, P.ProcessName, T.SourceID 
+             T.EEImpact, E.EEID, E.Forname, E.Surname, P.ProcessName, T.SourceID, R.CauseText 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
-             tProcess as P ON T.ProcessID = P.ID
+             tProcess as P ON T.ProcessID = P.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
              WHERE (T.ProcessID IN (246, 261, 264, 282, 284, 289, 305,
              306, 326, 341)) AND 
              (T.DateReceived BETWEEN ? AND ?)"""
