@@ -332,9 +332,10 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, R.CauseText 
              FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
              WHERE (T.ProcessID = 325) AND 
              (T.DateReceived BETWEEN ? AND ?) AND (T.EffectiveDate < T.DateReceived)"""
     notes_name = 'Return effective '
