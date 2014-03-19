@@ -145,8 +145,6 @@ def contract_exp_by_dates(sD, eD, cursor):
              (T.DateReceived BETWEEN ? AND ?) AND 
              (T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived)"""
     ttype = 'Contract Expiration - Late Renewal Submission'
-    notes_name = 'Contract End date '
-    notes_override = None
 
     #getting recordset from DB    
     result = get_DBdata(sql, sD, eD, cursor)
@@ -234,8 +232,6 @@ def contract_exp_by_letters(sD, eD, cursor):
              (T.SignedLetterReceivedOn < GETDATE() AND T.SignedLetterRequired = 1)
               OR (T.SignedLetterReceivedOn < GETDATE() AND T.SignedLetterRequired = 1)"""
     notes_name = 'Contract End effective date '
-    docs_rec = '\nPCR received on '
-    notes_override = None
     
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -278,8 +274,6 @@ def late_loa(sD, eD, cursor):
              306, 326, 341)) AND 
              (T.DateReceived BETWEEN ? AND ?)"""
     ttype = 'Leave of Absence - Late Submission'
-    notes_name = None
-    docs_rec = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -336,16 +330,13 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, R.CauseText 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, R.CauseText, T.SourceID 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
              tRootCause as R ON T.RootCause = R.ID
              WHERE (T.ProcessID = 325) AND 
              (T.DateReceived BETWEEN ? AND ?) AND (T.EffectiveDate < T.DateReceived)"""
-    notes_name = 'Return effective '
     ttype = 'Return from Leave - Late Submission'
-    docs_rec = '.\nPCR Received on '
-    notes_override = None
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
@@ -354,18 +345,33 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
+            if row.SourceID == 2:
+                source = 'PCR received on '
+            else:
+                source = 'Non-PCR request received on '
+
+            #make sure to use a date. If complete docs la    
+            if row.CompleteDocsDate:
+                docsDate = row.CompleteDocsDate
+                compDocs = ('%s%s' % ('Complete request received on ',
+                                      row.CompleteDocsDate.strftime('%d/%m/%Y')))
+            else:
+                docsDate = datetime.datetime.today()
+                compDocs = 'Complete documents still pending'
+                
             if (row.DateReceived - row.EffectiveDate).days > 0:
-                notes_override = ('"%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s"' %('Return effective on ',
+                notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %('Return effective on ',
                                                                        row.EffectiveDate.strftime('%d/%m/%Y'),
-                                                                       'PCR Received on ',
+                                                                       source,
                                                                        row.DateReceived.strftime('%d/%m/%Y'),
+                                                                       compDocs,     
                                                                        'Request should be submitted by ',
                                                                        row.EffectiveDate.strftime('%d/%m/%Y'),
                                                                        'Days late for payroll cut off: ',
-                                                                       day_diff(row.DateReceived, row.EffectiveDate),
+                                                                       day_diff(docsDate, row.EffectiveDate),
                                                                        row.EEImpact
                                                                    ))
-                write_to_dict(row, ttype, notes_name, docs_rec, notes_override, True)
+                write_to_dict(row, ttype, notes)
 
     
 
