@@ -137,9 +137,10 @@ def contract_exp_by_dates(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, T.SourceID 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname, T.SourceID, R.CauseText 
              FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
+             tRootCause as R ON T.RootCause = R.CauseText 
              WHERE (T.ProcessID IN (262, 330)) AND
              (T.DateReceived BETWEEN ? AND ?) AND 
              (T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived)"""
