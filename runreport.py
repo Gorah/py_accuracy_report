@@ -671,6 +671,20 @@ def late_paychange_letters(sD, eD, cursor):
 
     if result:
         for row in result:
+             #############################
+            #TEMP STUFF - REMOVE IN PROD
+            if not row.LetterSentOn:
+                LetterSentOn = datetime.datetime(2010, 10, 10)
+            else:
+                LetterSentOn = row.LetterSentOn
+
+            if not row.SignedLetterReceivedOn:
+                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
+            else:
+                SignedLetterReceivedOn = row.SignedLetterReceivedOn
+
+            ###################################
+            
             source = get_source_string(row.SourceID)
             compDocs = get_compDocsString(row.CompleteDocsDate)
             dateRec = get_docsDate(row.CompleteDocsDate)
@@ -679,7 +693,8 @@ def late_paychange_letters(sD, eD, cursor):
             #basing on date conditions
             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
                 sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
-                                             row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                             #row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                            SignedLetterReceivedOn.strftime('%d/%m/%Y')))
             elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
                 sigLetter = '"Signed letter not yet returned.\n"'
             elif row.LetterReceived == 0:
@@ -688,7 +703,8 @@ def late_paychange_letters(sD, eD, cursor):
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
                 letterSent = ('%s%s' % ('Letter sent on ',
-                                        row.LetterSentOn.strftime('%d/%m/%Y')))
+                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
+                                        LetterSentOn.strftime('%d/%m/%Y')))
             else:
                 letterSent = 'Letter not sent yet'
                 
@@ -698,11 +714,12 @@ def late_paychange_letters(sD, eD, cursor):
                 days = day_diff(row.CutOffDate, row.CompleteDocsDate)
             elif row.CompleteDocsDate > row.EffectiveDate:
                 days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
-                
-            if row.SignedLetterReceivedOn > row.CutOffDate:
-                days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
-            elif row.SignedLetterReceivedOn > row.EffectiveDate:
-                days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+            if row.SignedLetterReceivedOn:    
+                if row.SignedLetterReceivedOn > row.CutOffDate:
+                    days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+                elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                    days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
 
             #create notes field
             notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s%s.\n%s%d.\n%s."' %
