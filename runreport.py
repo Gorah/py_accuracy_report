@@ -556,11 +556,12 @@ def late_jobchange_letters(sD, eD, cursor):
                 days = day_diff(row.CutOffDate, row.CompleteDocsDate)
             elif row.CompleteDocsDate > row.EffectiveDate:
                 days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
-                
-            if row.SignedLetterReceivedOn > row.CutOffDate:
-                days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
-            elif row.SignedLetterReceivedOn > row.EffectiveDate:
-                days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+            if row.SignedLetterReceivedOn:    
+                if row.SignedLetterReceivedOn > row.CutOffDate:
+                    days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+                elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                    days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
 
             #create notes field
             notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s%s.\n%s%d.\n%s."' %
