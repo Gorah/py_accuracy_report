@@ -938,7 +938,7 @@ def get_docsDate(compdate):
 def get_compDocsString(compdate):
     if compdate:
         return ('%s%s' % ('Complete request received on ',
-                                      row.CompleteDocsDate.strftime('%d/%m/%Y')))
+                                      compdate.strftime('%d/%m/%Y')))
     else:
         return 'Complete documents still pending'
 
