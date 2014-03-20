@@ -532,6 +532,15 @@ def late_jobchange_letters(sD, eD, cursor):
             source = get_source_string(row.SourceID)
             compDocs = get_compDocsString(row.CompleteDocsDate)
             dateRec = get_docsDate(row.CompleteDocsDate)
+
+            ####
+            #TEMP STUFF - REMOVE FOR PROD
+            ####
+            if not row.LetterSentOn:
+                row.LetterSentOn = datetime.datetime(2010, 10, 10)
+
+            if not row.SignedLetterReceivedOn:
+                row.SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
             
             #create statuses of signed letter received back
             #basing on date conditions
