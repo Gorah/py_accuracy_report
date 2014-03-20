@@ -545,19 +545,19 @@ def late_jobchange_letters(sD, eD, cursor):
 
     if result:
         for row in result:
-             source = get_source_string(row.SourceID)
-             compDocs = get_compDocsString(row.CompleteDocsDate)
-             dateRec = get_docsDate(row.CompleteDocsDate)
-             
-             #create statuses of signed letter received back
-             #basing on date conditions
-             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
-                 sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
-                                             row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-             elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
-                 sigLetter = '"Signed letter not yet returned.\n"'
-             elif row.LetterReceived == 0:
-                 sigLetter = ''
+            source = get_source_string(row.SourceID)
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            dateRec = get_docsDate(row.CompleteDocsDate)
+            
+            #create statuses of signed letter received back
+            #basing on date conditions
+            if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
+                sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
+                                            row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+            elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
+                sigLetter = '"Signed letter not yet returned.\n"'
+            elif row.LetterReceived == 0:
+                sigLetter = ''
                 
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
@@ -597,7 +597,7 @@ def late_jobchange_letters(sD, eD, cursor):
             write_to_dict(row, ttype, notes)
 
 
- def late_paychange_action(sD, eD, cursor):
+def late_paychange_action(sD, eD, cursor):
     """
     This function finds late job change actions in SAP among tickets
     """
@@ -671,19 +671,19 @@ def late_paychange_letters(sD, eD, cursor):
 
     if result:
         for row in result:
-             source = get_source_string(row.SourceID)
-             compDocs = get_compDocsString(row.CompleteDocsDate)
-             dateRec = get_docsDate(row.CompleteDocsDate)
-             
-             #create statuses of signed letter received back
-             #basing on date conditions
-             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
-                 sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
+            source = get_source_string(row.SourceID)
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            dateRec = get_docsDate(row.CompleteDocsDate)
+            
+            #create statuses of signed letter received back
+            #basing on date conditions
+            if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
+                sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
                                              row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-             elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
-                 sigLetter = '"Signed letter not yet returned.\n"'
-             elif row.LetterReceived == 0:
-                 sigLetter = ''
+            elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
+                sigLetter = '"Signed letter not yet returned.\n"'
+            elif row.LetterReceived == 0:
+                sigLetter = ''
                 
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
@@ -691,7 +691,7 @@ def late_paychange_letters(sD, eD, cursor):
                                         row.LetterSentOn.strftime('%d/%m/%Y')))
             else:
                 letterSent = 'Letter not sent yet'
-            
+                
             #calculate amount of days late basing on currenn document and contract statuses
             #and on docs submission date
             if row.CompleteDocsDate > row.CutOffDate:
@@ -955,7 +955,7 @@ def runReport(sD, eD):
         #Job Changes action tickets
         late_jobchange_action(sD, eD, cursor)
         #Job Changes letter tickets
-        late_jobchange_letters(sD, eD, cursor))
+        late_jobchange_letters(sD, eD, cursor)
 
         #New Hire section
         late_hire(sD, eD, cursor)
@@ -964,12 +964,11 @@ def runReport(sD, eD):
         procname = 'Pay Change'
         #Pay Changes action tickets
         scope = '327, 328, 329'
-        late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
-        late_by_dates_completedoc(sD, eD, scope, procname, cursor)
+        late_paychange_action(sD, eD, cursor)
         #Pay Changes letter tickets
         procname = 'Pay Change - Late Submission'
         scope = '395, 396, 397, 347'
-        late_by_letters(sD, eD, scope, procname, cursor)
+        late_paychange_letters(sD, eD, cursor)
 
 
         #Termination section
