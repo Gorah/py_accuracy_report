@@ -597,9 +597,132 @@ def late_jobchange_letters(sD, eD, cursor):
             write_to_dict(row, ttype, notes)
 
 
-                
+ def late_paychange_action(sD, eD, cursor):
+    """
+    This function finds late job change actions in SAP among tickets
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , R.CauseText, T.SourceID 
+             FROM tTracker as T INNER JOIN
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (327, 328, 329) AND 
+             T.DateReceived BETWEEN ? AND ?) AND  
+             (((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
+             OR ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived) AND
+             T.CompleteDocsDate IS NULL))"""
+    ttype = "Pay Change - Late Submission"
+
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    
+    if result:
+        for row in result:
+            source = get_source_string(row.SourceID)
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            dateRec = get_docsDate(row.CompleteDocsDate)
+
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %
+                     ('Pay change effective on ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      source,
+                      row.DateReceived.strftime('%d/%m/%Y'),
+                      compDocs,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      day_diff(dateRec, row.CutOffDate),
+                      row.EEImpact
+                  ))
+            write_to_dict(row, ttype, notes)               
             
 
+def late_paychange_letters(sD, eD, cursor):
+    """
+    This function finds late job change letters
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.CompleteDocsDate, T.EffectiveDate, 
+             T.CutOffDate, T.EEImpact, T.SignedLetterReceivedOn, 
+             T.NumberOfReminders, E.EEID, E.Forname, 
+             E.Surname, T.LetterReceived, T.SignedLetterRequired, 
+             T.LetterSentOn, R.CauseText, T.SourceID  
+             FROM tTracker as T INNER JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (363, 385, 386, 400, 410, 412, 413)) AND
+             (T.DateReceived BETWEEN ? AND ?) AND 
+             ((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) OR 
+             (T.EffectiveDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
+             AND T.SignedLetterReceivedOn IS NOT NULL) OR 
+             (T.CutOffDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
+             AND T.SignedLetterReceivedOn IS NOT NULL) OR
+             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
+             T.EffectiveDate < GETDATE()) OR
+             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
+             T.CutOffDate < GETDATE()))"""
+    ttype = "Pay Change - Late Submission"
+
+    #grab recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    if result:
+        for row in result:
+             source = get_source_string(row.SourceID)
+             compDocs = get_compDocsString(row.CompleteDocsDate)
+             dateRec = get_docsDate(row.CompleteDocsDate)
+             
+             #create statuses of signed letter received back
+             #basing on date conditions
+             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
+                 sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
+                                             row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+             elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
+                 sigLetter = '"Signed letter not yet returned.\n"'
+             elif row.LetterReceived == 0:
+                 sigLetter = ''
+                
+            #create statuses for  letter sent, offer pack sent based on dates    
+            if row.LetterReceived == 1:
+                letterSent = ('s%s%' % ('Letter sent on ',
+                                        row.LetterSentOn.strftime('%d/%m/%Y')))
+            else:
+                letterSent = 'Letter not sent yet'
+            
+            #calculate amount of days late basing on currenn document and contract statuses
+            #and on docs submission date
+            if row.CompleteDocsDate > row.CutOffDate:
+                days = day_diff(row.CutOffDate, row.CompleteDocsDate)
+            elif row.CompleteDocsDate > row.EffectiveDate:
+                days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
+                
+            if row.SignedLetterReceivedOn > row.CutOffDate:
+                days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+            elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+            #create notes field
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s%s.\n%s%d.\n%s."' %
+                     ('Pay change effective on ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      source,
+                      row.DateReceived.strftime('%d/%m/%Y'),
+                      compDocs,
+                      letterSent,
+                      sigLetter,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      days,
+                      row.EEImpact
+                  ))
+
+            write_to_dict(row, ttype, notes)
+
+            
 def late_hire(sD, eD, cursor):
     """
     This function finds late hire actions
