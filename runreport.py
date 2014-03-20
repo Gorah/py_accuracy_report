@@ -537,16 +537,21 @@ def late_jobchange_letters(sD, eD, cursor):
             #TEMP STUFF - REMOVE FOR PROD
             ####
             if not row.LetterSentOn:
-                row.LetterSentOn = datetime.datetime(2010, 10, 10)
+                LetterSentOn = datetime.datetime(2010, 10, 10)
+            else:
+                LetterSentOn = row.LetterSentOn
 
             if not row.SignedLetterReceivedOn:
-                row.SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
+                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
+            else:
+                SignedLetterReceivedOn = row.SignedLetterReceivedOn
             
             #create statuses of signed letter received back
             #basing on date conditions
             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
                 sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
-                                            row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                           # row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                            SignedLetterReceivedOn.strftime('%d/%m/%Y')))
             elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
                 sigLetter = '"Signed letter not yet returned.\n"'
             elif row.LetterReceived == 0:
@@ -554,8 +559,9 @@ def late_jobchange_letters(sD, eD, cursor):
                 
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
-                letterSent = ('s%s%' % ('Letter sent on ',
-                                        row.LetterSentOn.strftime('%d/%m/%Y')))
+                letterSent = ('%s%s' % ('Letter sent on ',
+                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
+                                        LetterSentOn.strftime('%d/%m/%Y')))
             else:
                 letterSent = 'Letter not sent yet'
             
@@ -782,7 +788,7 @@ def late_hire(sD, eD, cursor):
             notes = ('"%s%s.\n%s%s.\n%s.\n%s%s%s.\n%s%d.\n%s"' %('New Hire effective on ',
                                                                  row.EffectiveDate.strftime('%d/%m/%Y'),
                                                                  compDocs,
-                                                                 LetterSent,
+                                                                 letterSent,
                                                                  offPack,
                                                                  sigLetter,
                                                                  'Request should be submitted by ',
