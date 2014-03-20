@@ -75,7 +75,7 @@ def day_diff(date1, date2):
 
     
 
-def write_to_dict(row, ttype, notes_name, docs_rec, notes_override, userecdate, skip_date_rec = False):
+def write_to_dict(row, ttype, notes):
     """
     This function fills dictionary with a new entry (which is another
     dictionary containing all the necessary data)
@@ -87,35 +87,7 @@ def write_to_dict(row, ttype, notes_name, docs_rec, notes_override, userecdate, 
     #This allows overriding default notes script overriding
 
     
-    
-    if notes_override:
-        case_descr['notes'] = notes_override
-    elif skip_date_rec:
-        if not row.CutOffDate:
-            cutoff = datetime.datetime.now().strftime('%d/%m/%Y')
-        else:
-            cutoff = row.CutOffDate.strftime('%d/%m/%Y')
-            
-        case_descr['notes'] = ('"%s%s%s.\n%s%s.\nDays late for payroll cut off: %d.\n%s."' %
-                               (notes_name, row.EffectiveDate.strftime('%d/%m/%Y'),
-                                docs_rec, 'Request should by submitted by ',
-                                cutoff, count_days(row, userecdate), row.EEImpact))
-    else:
-        if not row.CutOffDate:
-            cutoff = datetime.datetime.now().strftime('%d/%m/%Y')
-        else:
-            cutoff = row.CutOffDate.strftime('%d/%m/%Y')
-            
-        case_descr['notes'] = ('"%s%s%s%s.\n%s%s.\nDays late for payroll cut off: %d.\n%s."' %
-                               (notes_name,
-                                row.EffectiveDate.strftime('%d/%m/%Y'),
-                                docs_rec,
-                                row.DateReceived.strftime('%d/%m/%Y'),
-                                'Request should by submitted by ',
-                                cutoff,
-                                count_days(row, userecdate),
-                                row.EEImpact)
-        )
+    case_descr['notes'] = notes
         
     if not row.Forname:
         forename = ' '
@@ -123,6 +95,7 @@ def write_to_dict(row, ttype, notes_name, docs_rec, notes_override, userecdate, 
         forename = row.Forname
     case_descr['eename'] = row.Surname + ' ' + forename  
     case_descr['eeid'] = row.EEID
+    case_descr['rootcause'] = row.CauseText
 
     #new dictionary is appended to general dict under ticket ID as key
     LATE_CASES[row.ID] = case_descr
@@ -140,7 +113,7 @@ def contract_exp_by_dates(sD, eD, cursor):
              T.NumberOfReminders, E.EEID, E.Forname, E.Surname, T.SourceID, R.CauseText 
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
-             tRootCause as R ON T.RootCause = R.CauseText 
+             tRootCause as R ON T.RootCause = R.ID 
              WHERE (T.ProcessID IN (262, 330)) AND
              (T.DateReceived BETWEEN ? AND ?) AND 
              (T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived)"""
@@ -969,10 +942,11 @@ def write_to_file():
     for key in LATE_CASES:
         #build file entry row from dict data
         
-        fileentry = '%d,%s,%s,%s,%d' % (key, LATE_CASES[key]['type'],
-                                            LATE_CASES[key]['notes'],
-                                            LATE_CASES[key]['eename'],
-                                            LATE_CASES[key]['eeid'])
+        fileentry = '%d,%s,%s,%s,%s,%d' % (key, LATE_CASES[key]['type'],
+                                           LATE_CASES[key]['notes'],
+                                           LATE_CASES[key]['rootcause'],
+                                           LATE_CASES[key]['eename'],
+                                           LATE_CASES[key]['eeid'])
         #write etry to file
         report.write(fileentry + '\n')
 
