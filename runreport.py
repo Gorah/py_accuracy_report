@@ -164,8 +164,8 @@ def contract_no_response(sD, eD, cursor):
              tRootCause as R ON T.RootCause = R.ID
              WHERE T.ProcessID IN (352, 350, 383, 399) AND 
              (T.DateReceived BETWEEN ? AND ?) AND
-             (T.EffectiveDate < GETDATE() AND T.SignedLetterReceivedOn is null)
-              OR (T.CutOffDate < GETDATE() AND T.SignedLetterReceivedOn is null)"""
+             ((T.EffectiveDate < GETDATE() AND T.SignedLetterReceivedOn is null)
+              OR (T.CutOffDate < GETDATE() AND T.SignedLetterReceivedOn is null))"""
 
     #getting data from DB
     result = get_DBdata(sql, sD, eD, cursor)
