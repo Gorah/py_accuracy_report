@@ -800,6 +800,49 @@ def late_hire(sD, eD, cursor):
             write_to_dict(row, ttype, notes)
                 
 
+def late_termination(sD, eD, cursor):
+    """
+    This function finds late job change actions in SAP among tickets
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , R.CauseText, T.SourceID 
+             FROM tTracker as T INNER JOIN
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (327, 328, 329) AND 
+             T.DateReceived BETWEEN ? AND ?) AND  
+             (((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
+             OR ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived) AND
+             T.CompleteDocsDate IS NULL))"""
+    ttype = "Termination - Late Submission"
+
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    
+    if result:
+        for row in result:
+            source = get_source_string(row.SourceID)
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            dateRec = get_docsDate(row.CompleteDocsDate)
+
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %
+                     ('Termination effective on ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      source,
+                      row.DateReceived.strftime('%d/%m/%Y'),
+                      compDocs,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      day_diff(dateRec, row.CutOffDate),
+                      row.EEImpact
+                  ))
+            write_to_dict(row, ttype, notes)
+
+            
 def termination_complete_docs(sD, eD, cursor):
     """
     This generic function collects data about specified category and
@@ -880,10 +923,7 @@ def termination_checklist_check(cursor):
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
              tRootCause as R ON T.RootCause = R.ID
              WHERE (T.ProcessID = 417) AND (T.LetterReceived = 0)"""
-    notes_name = ''
     ttype = 'Termination -  No Termination Checklist submitted'
-    docs_rec = ''
-    notes_override = 'Possible SOX audit compliance issue'
     
     #getting recordset from DB
     sD = None
@@ -894,7 +934,8 @@ def termination_checklist_check(cursor):
     #added to dictionary
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
+            notes = ('Possible SOX audit compliance issue')
+            write_to_dict(row, ttype, notes)
 
 
 def get_source_string(sourceID):
@@ -974,8 +1015,7 @@ def runReport(sD, eD):
         #Termination section
         procname = 'Termination'
         #Termination actions
-        termination_missing_docs(sD, eD, cursor)
-        termination_complete_docs(sD, eD, cursor)
+        late_termination(sD, eD, cursor)
         #Termination checklist
         termination_checklist_check(cursor)
 
