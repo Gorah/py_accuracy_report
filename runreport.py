@@ -172,11 +172,16 @@ def contract_no_response(sD, eD, cursor):
 
     if result:
         for row in result:
-            notes = ('""%s%s.\n%s%s.\n%s%s.\n%s.\n%s%d.\n%s.""' %
+            if row.LetterSentOn:
+                letter = ('%s%s' %('Email to manager sent on ',
+                               row.LetterSentOn.strftime('%d/%m/%Y')))
+            else:
+                letter = 'Email not sent yet'
+                
+            notes = ('""%s%s.\n%s.\n%s%s.\n%s.\n%s%d.\n%s.""' %
                      ('Contract End date ',
                       row.EffectiveDate.strftime('%d/%m/%Y'),
-                      'Email to manager sent on ',
-                      row.LetterSentOn.strftime('%d/%m/%Y'),
+                      letter,
                       'Request should be submitted by ',
                       row.CutOffDate.strftime('%d/%m/%Y'),
                       'Response not received from LM',
@@ -216,12 +221,17 @@ def contract_exp_by_letters(sD, eD, cursor):
     """
     if result:
         for row in result:
+            if row.LetterSentOn:
+                letter = ('%s%s' %('Email to manager sent on ',
+                               row.LetterSentOn.strftime('%d/%m/%Y')))
+            else:
+                letter = 'Email not sent yet'
+                
             ttype = 'Contract Expiration - Late Renewal Submission'
-            notes = ('""%s%s.\n%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s.""' %
+            notes = ('""%s%s.\n%s.\n%s%s.\n%s%s.\n%s%d.\n%s.""' %
                      ('Contract End date ',
                       row.EffectiveDate.strftime('%d/%m/%Y'),
-                      'Email to manager sent on ',
-                      row.LetterSentOn.strftime('%d/%m/%Y'),
+                      letter,
                       'Response should be submitted by ',
                       row.CutOffDate.strftime('%d/%m/%Y'),
                       'Response from LM received on ',
@@ -332,7 +342,7 @@ def ret_from_loa_by_dates(sD, eD, cursor):
                                                                        'Request should be submitted by ',
                                                                        row.EffectiveDate.strftime('%d/%m/%Y'),
                                                                        'Days late for payroll cut off: ',
-                                                                       day_diff(docsDate, row.EffectiveDate),
+                                                                       day_diff(dateRec, row.EffectiveDate),
                                                                        row.EEImpact
                                                                    ))
                 write_to_dict(row, ttype, notes)
