@@ -752,11 +752,26 @@ def late_hire(sD, eD, cursor):
             # else note that complete docs were not received yet
             compDocs = get_compDocsString(row.CompleteDocsDate)
 
+            #############################
+            #TEMP STUFF - REMOVE IN PROD
+            if not row.LetterSentOn:
+                LetterSentOn = datetime.datetime(2010, 10, 10)
+            else:
+                LetterSentOn = row.LetterSentOn
+
+            if not row.SignedLetterReceivedOn:
+                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
+            else:
+                SignedLetterReceivedOn = row.SignedLetterReceivedOn
+
+            ###################################3    
+
             #create statuses of signed letter received back
             #basing on date conditions
             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
                 sigLetter = ('"%s%s.\n"' % ('Signed contract received on ',
-                                       row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                       #row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                        SignedLetterReceivedOn.strftime('%d/%m/%Y')))   
             elif row.LetterReceived == 1 and not row.SignedLetterReceivedOn:
                 sigLetter = '"Signed contract not yet returned.\n"'
             elif row.LetterReceived == 0:
@@ -765,7 +780,8 @@ def late_hire(sD, eD, cursor):
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
                 letterSent = ('s%s%' % ('Contract sent on ',
-                                        row.LetterSentOn.strftime('%d/%m/%Y')))
+                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
+                                        LetterSentOn.strftime('%d/%m/%Y')))
                 offPack = ('s%s%' % ('Offer pack sent on ',
                                      row.CloseDate.strftime('%d/%m/%Y')))
             else:
@@ -778,11 +794,12 @@ def late_hire(sD, eD, cursor):
                 days = day_diff(row.CutOffDate, row.CompleteDocsDate)
             elif row.CompleteDocsDate > row.EffectiveDate:
                 days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
-                
-            if row.SignedLetterReceivedOn > row.CutOffDate:
-                days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
-            elif row.SignedLetterReceivedOn > row.EffectiveDate:
-                days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+            if row.SignedLetterReceivedOn:    
+                if row.SignedLetterReceivedOn > row.CutOffDate:
+                    days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+                elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                    days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
 
             #create notes string    
             notes = ('"%s%s.\n%s%s.\n%s.\n%s%s%s.\n%s%d.\n%s"' %('New Hire effective on ',
