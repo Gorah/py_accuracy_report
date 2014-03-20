@@ -156,25 +156,23 @@ def contract_exp_by_dates(sD, eD, cursor):
     """   
     if result:
         for row in result:
-            if row.CompleteDocsDate:
-                docs_rec = ('%s%s' % ('Complete documents received on ',
-                                      row.CompleteDocsDate.strftime('%d/%m/%Y')))
-            else:
-                docs_rec = 'Complete documenst still pending'
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            docs_rec = get_compDocsString(row.CompleteDocsDate)
 
-                notes = ('""%s%s.\n%s%s.\n%s.\n%s%s.\n%s%s.\n%s%d.\n%s.""' % ('Contract End date ',
-                                                                         row.EffectiveDate.strftime('%d/%m/%Y'),
-                                                                         'PCR received on ',
-                                                                         row.DateReceived.strftime('%d/%m/%Y'),     
-                                                                         docs_rec,
-                                                                         'Request should be submitted by ',
-                                                                         row.CutOffDate.strftime('%d/%m/%Y'),
-                                                                         'Request should be submitted by ',
-                                                                         row.CutOffDate.strftime('%d/%m/%Y'),
-                                                                         'Days late for payroll cut off: ',
-                                                                         day_diff(datetime.datetime.now(), row.CutOffDate),
-                                                                         row.EEImpact
-                                                                     ))    
+            notes = ('""%s%s.\n%s%s.\n%s.\n%s%s.\n%s%s.\n%s%d.\n%s.""' %
+                     ('Contract End date ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      'PCR received on ',
+                      row.DateReceived.strftime('%d/%m/%Y'),     
+                      docs_rec,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      day_diff(datetime.datetime.now(), row.CutOffDate),
+                      row.EEImpact
+                  ))    
 
             write_to_dict(row, ttype, notes)                
             
@@ -201,17 +199,18 @@ def contract_no_response(sD, eD, cursor):
 
     if result:
         for row in result:
-            notes = ('""%s%s.\n%s%s.\n%s%s.\n%s.\n%s%d.\n%s.""' % ('Contract End date ',
-                                                                   row.EffectiveDate.strftime('%d/%m/%Y'),
-                                                                   'Email to manager sent on ',
-                                                                   row.LetterSentOn.strftime('%d/%m/%Y'),
-                                                                   'Request should be submitted by ',
-                                                                   row.CutOffDate.strftime('%d/%m/%Y'),
-                                                                   'Response not received from LM',
-                                                                   'Days late for payroll cut off: ',
-                                                                   day_diff(datetime.datetime.now(), row.CutOffDate),
-                                                                   row.EEImpact
-                                                               ))
+            notes = ('""%s%s.\n%s%s.\n%s%s.\n%s.\n%s%d.\n%s.""' %
+                     ('Contract End date ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      'Email to manager sent on ',
+                      row.LetterSentOn.strftime('%d/%m/%Y'),
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Response not received from LM',
+                      'Days late for payroll cut off: ',
+                      day_diff(datetime.datetime.now(), row.CutOffDate),
+                      row.EEImpact
+                  ))
             write_to_dict(row, 'Contract Expiration - No Response', notes)
     
 
@@ -244,18 +243,19 @@ def contract_exp_by_letters(sD, eD, cursor):
     if result:
         for row in result:
             ttype = 'Contract Expiration - Late Renewal Submission'
-            notes = ('""%s%s.\n%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s.""' % ('Contract End date ',
-                                                                     row.EffectiveDate.strftime('%d/%m/%Y'),
-                                                                     'Email to manager sent on ',
-                                                                     row.LetterSentOn.strftime('%d/%m/%Y'),
-                                                                     'Response should be submitted by ',
-                                                                     row.CutOffDate.strftime('%d/%m/%Y'),
-                                                                     'Response from LM received on ',
-                                                                     row.SignedLetterReceivedOn.strftime('%d/%m/%Y'),
-                                                                     'Days late for payroll cut off: ',
-                                                                     day_diff(datetime.datetime.now(), row.CutOffDate),
-                                                                     row.EEImpact
-                                                                 ))    
+            notes = ('""%s%s.\n%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s.""' %
+                     ('Contract End date ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      'Email to manager sent on ',
+                      row.LetterSentOn.strftime('%d/%m/%Y'),
+                      'Response should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Response from LM received on ',
+                      row.SignedLetterReceivedOn.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      day_diff(datetime.datetime.now(), row.CutOffDate),
+                      row.EEImpact
+                  ))    
 
             write_to_dict(row, ttype, notes)
 
@@ -285,24 +285,22 @@ def late_loa(sD, eD, cursor):
             #checks if row is late. if yes adds an entry
             if check_if_late_loa(row):
 
-                if row.SourceID = 2:
-                    source = 'PCR received on '
-                else:
-                    source = 'Non-PCR request received on '
+                source = get_source_string(row.SourceID)
                     
                 friday = row.EffectiveDate + datetime.timedelta(days=(4 - row.EffectiveDate.weekday()))
-                notes = ('"%s%s.\n%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s"' % ('Process type: ',
-                                                                      row.ProcessName,
-                                                                      'Effective date ',
-                                                                      row.EffectiveDate.strftime('%d/%m/%Y'),
-                                                                      'Request should be submitted by ',
-                                                                      friday.strftime('%d/%m/%Y'),
-                                                                      source,
-                                                                      row.DateReceived.strftime('%d/%m/%Y'),
-                                                                      'Days late: ',
-                                                                      day_diff(row.DateReceived, friday),
-                                                                      row.EEImpact
-                                                                  ))
+                notes = ('"%s%s.\n%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s"' %
+                         ('Process type: ',
+                          row.ProcessName,
+                          'Effective date ',
+                          row.EffectiveDate.strftime('%d/%m/%Y'),
+                          'Request should be submitted by ',
+                          friday.strftime('%d/%m/%Y'),
+                          source,
+                          row.DateReceived.strftime('%d/%m/%Y'),
+                          'Days late: ',
+                          day_diff(row.DateReceived, friday),
+                          row.EEImpact
+                      ))
                 write_to_dict(row, ttype, notes)
 
 
@@ -345,19 +343,11 @@ def ret_from_loa_by_dates(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
-            if row.SourceID == 2:
-                source = 'PCR received on '
-            else:
-                source = 'Non-PCR request received on '
+            source = get_source_string(row.SourceID)
 
             #make sure to use a date. If complete docs la    
-            if row.CompleteDocsDate:
-                docsDate = row.CompleteDocsDate
-                compDocs = ('%s%s' % ('Complete request received on ',
-                                      row.CompleteDocsDate.strftime('%d/%m/%Y')))
-            else:
-                docsDate = datetime.datetime.today()
-                compDocs = 'Complete documents still pending'
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            dateRec = get_docsDate(row.CompleteDocsDate)
                 
             if (row.DateReceived - row.EffectiveDate).days > 0:
                 notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %('Return effective on ',
@@ -481,6 +471,135 @@ def late_by_letters(sD, eD, scope, procname, cursor):
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
 
 
+def late_jobchange_action(sD, eD, cursor):
+    """
+    This function finds late job change actions in SAP among tickets
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
+             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , R.CauseText, T.SourceID 
+             FROM tTracker as T INNER JOIN
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (315, 331, 323, 335, 340, 339) AND 
+             T.DateReceived BETWEEN ? AND ?) AND  
+             (((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
+             OR ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived) AND
+             T.CompleteDocsDate IS NULL))"""
+    ttype = "Job Change - Late Submission"
+
+    #getting recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    
+    if result:
+        for row in result:
+            source = get_source_string(row.SourceID)
+            compDocs = get_compDocsString(row.CompleteDocsDate)
+            dateRec = get_docsDate(row.CompleteDocsDate)
+
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %
+                     ('Job change effective on ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      source,
+                      row.DateReceived.strftime('%d/%m/%Y'),
+                      compDocs,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      day_diff(dateRec, row.CutOffDate),
+                      row.EEImpact
+                  ))
+            write_to_dict(row, ttype, notes)   
+
+
+def late_jobchange_letters(sD, eD, cursor):
+    """
+    This function finds late job change letters
+    """
+    sql = """SELECT T.ID, T.DateReceived, T.CompleteDocsDate, T.EffectiveDate, 
+             T.CutOffDate, T.EEImpact, T.SignedLetterReceivedOn, 
+             T.NumberOfReminders, E.EEID, E.Forname, 
+             E.Surname, T.LetterReceived, T.SignedLetterRequired, 
+             T.LetterSentOn, R.CauseText, T.SourceID  
+             FROM tTracker as T INNER JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (363, 385, 386, 400, 410, 412, 413)) AND
+             (T.DateReceived BETWEEN ? AND ?) AND 
+             ((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) OR 
+             (T.EffectiveDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
+             AND T.SignedLetterReceivedOn IS NOT NULL) OR 
+             (T.CutOffDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
+             AND T.SignedLetterReceivedOn IS NOT NULL) OR
+             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
+             T.EffectiveDate < GETDATE()) OR
+             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
+             T.CutOffDate < GETDATE()))"""
+    ttype = "Job Change - Late Submission"
+
+    #grab recordset from DB
+    result = get_DBdata(sql, sD, eD, cursor)
+
+    if result:
+        for row in result:
+             source = get_source_string(row.SourceID)
+             compDocs = get_compDocsString(row.CompleteDocsDate)
+             dateRec = get_docsDate(row.CompleteDocsDate)
+             
+             #create statuses of signed letter received back
+             #basing on date conditions
+             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
+                 sigLetter = ('"%s%s.\n"' % ('Signed letter received on ',
+                                             row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+             elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
+                 sigLetter = '"Signed letter not yet returned.\n"'
+             elif row.LetterReceived == 0:
+                 sigLetter = ''
+                
+            #create statuses for  letter sent, offer pack sent based on dates    
+            if row.LetterReceived == 1:
+                letterSent = ('s%s%' % ('Letter sent on ',
+                                        row.LetterSentOn.strftime('%d/%m/%Y')))
+            else:
+                letterSent = 'Letter not sent yet'
+            
+            #calculate amount of days late basing on currenn document and contract statuses
+            #and on docs submission date
+            if row.CompleteDocsDate > row.CutOffDate:
+                days = day_diff(row.CutOffDate, row.CompleteDocsDate)
+            elif row.CompleteDocsDate > row.EffectiveDate:
+                days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
+                
+            if row.SignedLetterReceivedOn > row.CutOffDate:
+                days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+            elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+            #create notes field
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s%s.\n%s%d.\n%s."' %
+                     ('Job change effective on ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      source,
+                      row.DateReceived.strftime('%d/%m/%Y'),
+                      compDocs,
+                      letterSent,
+                      sigLetter,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      days,
+                      row.EEImpact
+                  ))
+
+            write_to_dict(row, ttype, notes)
+
+
+                
+            
+
 def late_hire(sD, eD, cursor):
     """
     This function finds late hire actions
@@ -508,11 +627,7 @@ def late_hire(sD, eD, cursor):
         for row in result:
             # if complete documents date is set use it as Complete docs received on
             # else note that complete docs were not received yet
-            if row.CompleteDocsDate:
-                compDocs = ('"%s%s.\n"' %('Complete documents received on ',
-                                     row.CompleteDocsDate.strftime('%d/%m/%Y')))
-            else:
-                compDocs = '"Complete documents still pending.\n"'
+            compDocs = get_compDocsString(row.CompleteDocsDate)
 
             #create statuses of signed letter received back
             #basing on date conditions
@@ -540,7 +655,8 @@ def late_hire(sD, eD, cursor):
                 days = day_diff(row.CutOffDate, row.CompleteDocsDate)
             elif row.CompleteDocsDate > row.EffectiveDate:
                 days = day_diff(row.EffectiveDate, row.CompleteDocsDate)
-            elif row.SignedLetterReceivedOn > row.CutOffDate:
+                
+            if row.SignedLetterReceivedOn > row.CutOffDate:
                 days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
             elif row.SignedLetterReceivedOn > row.EffectiveDate:
                 days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
@@ -591,7 +707,7 @@ def termination_complete_docs(sD, eD, cursor):
     #added to dictionary
     if result:
         for row in result:
-            docs_rec = '.\nComplete info received on '
+            docs_rec = '.\nComplete details received on '
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
 
 def termination_missing_docs(sD, eD, cursor):
@@ -615,7 +731,7 @@ def termination_missing_docs(sD, eD, cursor):
              IS NULL"""
     notes_name = 'Termination effective '
     ttype = 'Termination - Late Submission'
-    docs_rec = '.\nComplete info still pending'
+    docs_rec = '.\nComplete details still pending'
     notes_override = None
 
     #getting recordset from DB
@@ -656,8 +772,29 @@ def termination_checklist_check(cursor):
     if result:
         for row in result:
             write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
-            
 
+
+def get_source_string(sourceID):
+     if sourceID == 2:
+         return 'PCR received on '
+     else:
+         return 'Non-PCR request received on'
+
+         
+def get_docsDate(compdate):
+    if compdate:
+        return compdate
+    else:
+        return datetime.datetime.today()
+        
+def get_compDocsString(compdate):
+    if compdate:
+        return ('%s%s' % ('Complete request received on ',
+                                      row.CompleteDocsDate.strftime('%d/%m/%Y')))
+    else:
+        return 'Complete documents still pending'
+
+        
 def write_to_file():
     """
     This function saves report to csv file
@@ -692,15 +829,10 @@ def runReport(sD, eD):
         ret_from_loa_by_dates(sD, eD, cursor)
 
         #Job Change section
-        procname = 'Job Change'
         #Job Changes action tickets
-        scope = '315, 331, 323, 335, 340, 339'
-        late_by_dates_missingdocs(sD, eD, scope, procname, cursor)
-        late_by_dates_completedoc(sD, eD, scope, procname, cursor)
+        late_jobchange_action(sD, eD, cursor)
         #Job Changes letter tickets
-        scope = '363, 385, 386, 400, 410, 412, 413'
-        procname = 'Job Change - Late Submission'
-        late_by_letters(sD, eD, scope, procname, cursor)
+        late_jobchange_letters(sD, eD, cursor))
 
         #New Hire section
         late_hire(sD, eD, cursor)
