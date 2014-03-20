@@ -687,7 +687,7 @@ def late_paychange_letters(sD, eD, cursor):
                 
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
-                letterSent = ('s%s%' % ('Letter sent on ',
+                letterSent = ('%s%s' % ('Letter sent on ',
                                         row.LetterSentOn.strftime('%d/%m/%Y')))
             else:
                 letterSent = 'Letter not sent yet'
@@ -779,11 +779,12 @@ def late_hire(sD, eD, cursor):
 
             #create statuses for  letter sent, offer pack sent based on dates    
             if row.LetterReceived == 1:
-                letterSent = ('s%s%' % ('Contract sent on ',
+                letterSent = ('%s%s' % ('Contract sent on ',
                                         #row.LetterSentOn.strftime('%d/%m/%Y')))
                                         LetterSentOn.strftime('%d/%m/%Y')))
-                offPack = ('s%s%' % ('Offer pack sent on ',
-                                     row.CloseDate.strftime('%d/%m/%Y')))
+                offPack = ('%s%s' % ('Offer pack sent on ',
+                                     #row.LetterSentOn.strftime('%d/%m/%Y')))
+                                     LetterSentOn.strftime('%d/%m/%Y')))
             else:
                 letterSent = 'Contract not sent yet'
                 offPack = 'Offer pack not sent yet'
