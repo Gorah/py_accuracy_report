@@ -196,7 +196,7 @@ def contract_exp_by_letters(sD, eD, cursor):
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate, 
-             T.NumberOfReminders, E.EEID, E.Forname, 
+             T.NumberOfReminders, E.EEID, E.Forname, T.SignedLetterReceivedOn, 
              E.Surname, T.LetterSentOn FROM tTracker as T INNER JOIN 
              tMCBCEmployee as E ON T.EeID = E.ID 
              WHERE T.ProcessID IN (349, 351, 352, 350, 383, 399) AND 
