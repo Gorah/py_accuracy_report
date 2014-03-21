@@ -67,7 +67,7 @@ def day_diff(date1, date2):
     This function returns difference in days between 2 dates.
     """
 
-    days = (date1 - date2).days +1
+    days = (date1 - date2).days
     if days > 0:
         return days
     else:
@@ -222,23 +222,47 @@ def contract_exp_by_letters(sD, eD, cursor):
     """
     if result:
         for row in result:
+             #############################
+            #TEMP STUFF - REMOVE IN PROD
+            if not row.LetterSentOn:
+                LetterSentOn = datetime.datetime(2010, 10, 10)
+            else:
+                LetterSentOn = row.LetterSentOn
+
+            ###################################
+
+            if not row.SignedLetterReceivedOn:
+                SignedLetterReceivedOn = datetime.datetime.today()
+            else:
+                SignedLetterReceivedOn = row.SignedLetterReceivedOn
+            
             if row.LetterSentOn:
                 letter = ('%s%s' %('Email to manager sent on ',
                                row.LetterSentOn.strftime('%d/%m/%Y')))
             else:
                 letter = 'Email not sent yet'
+
+            #create statuses of signed letter received back
+            #basing on date conditions
+            if row.SignedLetterReceivedOn:
+                sigLetter = ('%s%s' % ('Response from LM received on ',
+                                       # row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                       SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+            else:
+                sigLetter = 'Response from LM not yet returned'
+
+   
                 
             ttype = 'Contract Expiration - Late Renewal Submission'
-            notes = ('"%s%s.\n%s.\n%s%s.\n%s%s.\n%s%d.\n%s."' %
+            notes = ('"%s%s.\n%s.\n%s%s.\n%s.\n%s%d.\n%s."' %
                      ('Contract End date ',
                       row.EffectiveDate.strftime('%d/%m/%Y'),
                       letter,
                       'Response should be submitted by ',
                       row.CutOffDate.strftime('%d/%m/%Y'),
-                      'Response from LM received on ',
-                      row.SignedLetterReceivedOn.strftime('%d/%m/%Y'),
+                      sigLetter,
                       'Days late for payroll cut off: ',
-                      day_diff(datetime.datetime.now(), row.CutOffDate),
+                      day_diff(SignedLetterReceivedOn, row.CutOffDate),
                       row.EEImpact
                   ))    
 
@@ -846,12 +870,21 @@ def late_hire(sD, eD, cursor):
                 letterSent = 'Contract not sent yet'
                 offPack = 'Offer pack not sent yet'
 
+
+            #This checks if complete docs date has been filled in. If not,
+            #we can assume that complete documents are not yet provided and
+            #we are using current date instead.
+            if row.CompleteDocsDate:
+                docsRecDate = row.CompleteDocsDate
+            else:
+                docsRecDate = datetime.datetime.today()
+
             #calculate amount of days late basing on currenn document and contract statuses
-            #and on docs submission date
-            if row.CompleteDocsDate > row.CutOffDate:
-                days = day_diff(row.CompleteDocsDate, row.CutOffDate)
-            elif row.CompleteDocsDate > row.EffectiveDate:
-                days = day_diff(row.CompleteDocsDate, row.EffectiveDate)
+            #and on docs submission date    
+            if docsRecDate > row.CutOffDate:
+                days = day_diff(docsRecDate, row.CutOffDate)
+            elif docsRecDate > row.EffectiveDate:
+                days = day_diff(docsRecDate, row.EffectiveDate)
 
             if row.SignedLetterReceivedOn:    
                 if row.SignedLetterReceivedOn > row.CutOffDate:
