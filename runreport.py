@@ -594,12 +594,19 @@ def late_jobchange_letters(sD, eD, cursor):
             else:
                 letterSent = 'Letter not sent yet'
             
+            #if complete docs date is missing, use current date
+            if row.CompleteDocsDate:
+                delimiterDate = row.CompleteDocsDate
+            else:
+                delimiterDate = datetime.datetime.today()
+
             #calculate amount of days late basing on currenn document and contract statuses
-            #and on docs submission date
-            if row.CompleteDocsDate > row.CutOffDate:
-                days = day_diff(row.CompleteDocsDate, row.CutOffDate)
-            elif row.CompleteDocsDate > row.EffectiveDate:
-                days = day_diff(row.CompleteDocsDate, row.EffectiveDate)
+            #and on docs submission date    
+            if delimiterDate > row.CutOffDate:
+                days = day_diff(delimiterDate, row.CutOffDate)
+            elif delimiterDate > row.EffectiveDate:
+                days = day_diff(delimiterDate, row.EffectiveDate)
+                    
 
             if row.SignedLetterReceivedOn:    
                 if row.SignedLetterReceivedOn > row.CutOffDate:
@@ -831,26 +838,11 @@ def late_hire(sD, eD, cursor):
             # else note that complete docs were not received yet
             compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
 
-            #############################
-            #TEMP STUFF - REMOVE IN PROD
-            if not row.LetterSentOn:
-                LetterSentOn = datetime.datetime(2010, 10, 10)
-            else:
-                LetterSentOn = row.LetterSentOn
-
-            if not row.SignedLetterReceivedOn:
-                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
-            else:
-                SignedLetterReceivedOn = row.SignedLetterReceivedOn
-
-            ###################################3    
-
             #create statuses of signed letter received back
             #basing on date conditions
             if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
                 sigLetter = ('%s%s' % ('Signed contract received on ',
-                                       #row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-                                        SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                       row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
                 sigLetterRec = True
             elif row.LetterReceived == 1 and not row.SignedLetterReceivedOn:
                 sigLetter = 'Signed contract not yet returned'
@@ -859,13 +851,11 @@ def late_hire(sD, eD, cursor):
                 sigLetterRec = False
 
             #create statuses for  letter sent, offer pack sent based on dates    
-            if row.LetterReceived == 1:
+            if row.CloseDate:
                 letterSent = ('%s%s' % ('Contract sent on ',
-                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
-                                        LetterSentOn.strftime('%d/%m/%Y')))
+                                        row.CloseDate.strftime('%d/%m/%Y')))
                 offPack = ('%s%s' % ('Offer pack sent on ',
-                                     #row.LetterSentOn.strftime('%d/%m/%Y')))
-                                     LetterSentOn.strftime('%d/%m/%Y')))
+                                     row.CloseDate.strftime('%d/%m/%Y')))
             else:
                 letterSent = 'Contract not sent yet'
                 offPack = 'Offer pack not sent yet'
