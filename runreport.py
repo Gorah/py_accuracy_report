@@ -206,10 +206,10 @@ def contract_exp_by_letters(sD, eD, cursor):
              E.Surname, T.LetterSentOn, R.CauseText FROM tTracker as T INNER JOIN 
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
              tRootCause as R ON T.RootCause = R.ID
-             WHERE T.ProcessID IN (349, 351, 352, 350, 383, 399) AND 
+             WHERE (T.ProcessID IN (349, 351, 352, 350, 383, 399)) AND 
              (T.DateReceived BETWEEN ? AND ?) AND
-             (T.SignedLetterReceivedOn < GETDATE() AND T.SignedLetterRequired = 1)
-              OR (T.SignedLetterReceivedOn < GETDATE() AND T.SignedLetterRequired = 1)"""
+             ((T.SignedLetterReceivedOn < GETDATE() AND T.SignedLetterRequired = 1)
+              OR (T.SignedLetterReceivedOn < GETDATE() AND T.SignedLetterRequired = 1))"""
     notes_name = 'Contract End effective date '
     
     #getting recordset from DB
