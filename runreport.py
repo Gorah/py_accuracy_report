@@ -451,34 +451,119 @@ def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
 
 
 def late_by_letters(sD, eD, scope, procname, cursor):
-    """
-    This function finds all the New Hire contracts with missing info
-    and loads them to dict.
-    """
-    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate, 
-             T.CutOffDate, T.EEImpact, T.DocsReceivedDate, 
+   """
+   This function finds late job change letters
+   """
+   sql = """SELECT T.ID, T.DateReceived, T.CompleteDocsDate, T.EffectiveDate, 
+             T.CutOffDate, T.EEImpact, T.SignedLetterReceivedOn, 
              T.NumberOfReminders, E.EEID, E.Forname, 
-             E.Surname, T.LetterReceived FROM tTracker as T INNER JOIN 
-             tMCBCEmployee as E ON T.EeID = E.ID 
+             E.Surname, T.LetterReceived, T.SignedLetterRequired, 
+             T.LetterSentOn, R.CauseText, T.SourceID, T.InRejComment   
+             FROM tTracker as T INNER JOIN 
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
              WHERE (T.ProcessID IN (""" + scope + """)) AND
-             (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN
-             (1, 9)) AND ((T.EffectiveDate < T.DocsReceivedDate) OR
-             (T.CutOffDate < T.DocsReceivedDate) OR (T.EffectiveDate < GETDATE()
-              AND T.LetterReceived = 0 ) OR (T.CutOffDate < GETDATE()
-              AND T.LetterReceived = 0 ))"""
-    notes_name = procname + ' effective '
-    ttype = procname
-    docs_rec = '.\nComplete info still pending'
-    notes_override = None
+             (T.DateReceived BETWEEN ? AND ?) AND 
+             ((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) OR 
+             (T.EffectiveDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
+             AND T.SignedLetterReceivedOn IS NOT NULL) OR 
+             (T.CutOffDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
+             AND T.SignedLetterReceivedOn IS NOT NULL) OR
+             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
+             T.EffectiveDate < GETDATE()) OR
+             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
+             T.CutOffDate < GETDATE()))"""
+   ttype = procname + " - Late Submission"
 
-    #getting recordset from DB
-    result = get_DBdata(sql, sD, eD, cursor)
+   #grab recordset from DB
+   result = get_DBdata(sql, sD, eD, cursor)
 
-    #if there are any records in the recordset each row is sent to be
-    #added to dictionary
-    if result:
-        for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
+   if result:
+       for row in result:
+           #############################
+           #TEMP STUFF - REMOVE IN PROD
+           if not row.LetterSentOn:
+               LetterSentOn = datetime.datetime(2010, 10, 10)
+           else:
+               LetterSentOn = row.LetterSentOn
+
+           if not row.SignedLetterReceivedOn:
+                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
+           else:
+                SignedLetterReceivedOn = row.SignedLetterReceivedOn
+
+           ###################################
+           source = get_source_string(row.SourceID)
+           compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
+           dateRec = get_docsDate(row.CompleteDocsDate)
+            
+           #create statuses of signed letter received back
+           #basing on date conditions
+           if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
+               sigLetter = ('%s%s' % ('Signed letter received on ',
+                                             #row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+                                            SignedLetterReceivedOn.strftime('%d/%m/%Y')))
+               sigLetterRec = True
+           elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
+               sigLetter = 'Signed letter not yet returned'
+               sigLetterRec = True
+           elif row.LetterReceived == 0:
+               sigLetterRec = False
+                
+           #create statuses for  letter sent, offer pack sent based on dates    
+           if row.LetterReceived == 1:
+               letterSent = ('%s%s' % ('Letter sent on ',
+                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
+                                        LetterSentOn.strftime('%d/%m/%Y')))
+           else:
+               letterSent = 'Letter not sent yet'
+                
+           #calculate amount of days late basing on currenn document and contract statuses
+           #and on docs submission date
+           if row.CompleteDocsDate > row.CutOffDate:
+               days = day_diff(row.CompleteDocsDate, row.CutOffDate)
+           elif row.CompleteDocsDate > row.EffectiveDate:
+               days = day_diff(row.CompleteDocsDate, row.EffectiveDate)
+
+           if row.SignedLetterReceivedOn:    
+               if row.SignedLetterReceivedOn > row.CutOffDate:
+                   days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
+               elif row.SignedLetterReceivedOn > row.EffectiveDate:
+                   days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
+
+           #create notes field
+           if sigLetterRec:
+               notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s.\n%s%s.\n%s%d.\n%s."' %
+                        (procname + ' effective on ',
+                         row.EffectiveDate.strftime('%d/%m/%Y'),
+                         source,
+                         row.DateReceived.strftime('%d/%m/%Y'),
+                         compDocs,
+                         letterSent,
+                         sigLetter,
+                         'Request should be submitted by ',
+                         row.CutOffDate.strftime('%d/%m/%Y'),
+                         'Days late for payroll cut off: ',
+                         days,
+                         row.EEImpact
+                     ))
+           else:
+               notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s.\n%s%d.\n%s."' %
+                        (procname + ' effective on ',
+                         row.EffectiveDate.strftime('%d/%m/%Y'),
+                         source,
+                         row.DateReceived.strftime('%d/%m/%Y'),
+                         compDocs,
+                         letterSent,
+                         'Request should be submitted by ',
+                         row.CutOffDate.strftime('%d/%m/%Y'),
+                         'Days late for payroll cut off: ',
+                         days,
+                         row.EEImpact
+                     ))
+
+           write_to_dict(row, ttype, notes)
 
 
 def late_jobchange_action(sD, eD, cursor):
@@ -525,129 +610,6 @@ def late_jobchange_action(sD, eD, cursor):
             write_to_dict(row, ttype, notes)   
 
 
-def late_jobchange_letters(sD, eD, cursor):
-    """
-    This function finds late job change letters
-    """
-    sql = """SELECT T.ID, T.DateReceived, T.CompleteDocsDate, T.EffectiveDate, 
-             T.CutOffDate, T.EEImpact, T.SignedLetterReceivedOn, 
-             T.NumberOfReminders, E.EEID, E.Forname, 
-             E.Surname, T.LetterReceived, T.SignedLetterRequired, 
-             T.LetterSentOn, R.CauseText, T.SourceID, T.InRejComment  
-             FROM tTracker as T INNER JOIN 
-             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
-             tRootCause as R ON T.RootCause = R.ID
-             WHERE (T.ProcessID IN (363, 385, 386, 400, 410, 412, 413)) AND
-             (T.DateReceived BETWEEN ? AND ?) AND 
-             ((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate) OR 
-             (T.EffectiveDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
-             AND T.SignedLetterReceivedOn IS NOT NULL) OR 
-             (T.CutOffDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
-             AND T.SignedLetterReceivedOn IS NOT NULL) OR
-             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
-             T.EffectiveDate < GETDATE()) OR
-             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
-             T.CutOffDate < GETDATE()))"""
-    ttype = "Job Change - Late Submission"
-
-    #grab recordset from DB
-    result = get_DBdata(sql, sD, eD, cursor)
-
-    if result:
-        for row in result:
-            source = get_source_string(row.SourceID)
-            compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
-            dateRec = get_docsDate(row.CompleteDocsDate)
-
-            ####
-            #TEMP STUFF - REMOVE FOR PROD
-            ####
-            if not row.LetterSentOn:
-                LetterSentOn = datetime.datetime(2010, 10, 10)
-            else:
-                LetterSentOn = row.LetterSentOn
-
-            if not row.SignedLetterReceivedOn:
-                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
-            else:
-                SignedLetterReceivedOn = row.SignedLetterReceivedOn
-            
-            #create statuses of signed letter received back
-            #basing on date conditions
-            if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
-                sigLetter = ('%s%s' % ('Signed letter received on ',
-                                           # row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-                                            SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-                sigLetterRec = True
-            elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
-                sigLetter = 'Signed letter not yet returned'
-                sigLetterRec = True
-            elif row.LetterReceived == 0:
-                sigLetterRec = False
-                
-            #create statuses for  letter sent, offer pack sent based on dates    
-            if row.LetterReceived == 1:
-                letterSent = ('%s%s' % ('Letter sent on ',
-                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
-                                        LetterSentOn.strftime('%d/%m/%Y')))
-            else:
-                letterSent = 'Letter not sent yet'
-            
-            #if complete docs date is missing, use current date
-            if row.CompleteDocsDate:
-                delimiterDate = row.CompleteDocsDate
-            else:
-                delimiterDate = datetime.datetime.today()
-
-            #calculate amount of days late basing on currenn document and contract statuses
-            #and on docs submission date    
-            if delimiterDate > row.CutOffDate:
-                days = day_diff(delimiterDate, row.CutOffDate)
-            elif delimiterDate > row.EffectiveDate:
-                days = day_diff(delimiterDate, row.EffectiveDate)
-                    
-
-            if row.SignedLetterReceivedOn:    
-                if row.SignedLetterReceivedOn > row.CutOffDate:
-                    days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
-                elif row.SignedLetterReceivedOn > row.EffectiveDate:
-                    days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
-
-            #create notes field
-            if sigLetterRec:
-                notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s.\n%s%s.\n%s%d.\n%s."' %
-                         ('Job change effective on ',
-                          row.EffectiveDate.strftime('%d/%m/%Y'),
-                          source,
-                          row.DateReceived.strftime('%d/%m/%Y'),
-                          compDocs,
-                          letterSent,
-                          sigLetter,
-                          'Request should be submitted by ',
-                          row.CutOffDate.strftime('%d/%m/%Y'),
-                          'Days late for payroll cut off: ',
-                          days,
-                          row.EEImpact
-                      ))
-            else:
-                notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s.\n%s%d.\n%s."' %
-                         ('Job change effective on ',
-                          row.EffectiveDate.strftime('%d/%m/%Y'),
-                          source,
-                          row.DateReceived.strftime('%d/%m/%Y'),
-                          compDocs,
-                          letterSent,
-                          'Request should be submitted by ',
-                          row.CutOffDate.strftime('%d/%m/%Y'),
-                          'Days late for payroll cut off: ',
-                          days,
-                          row.EEImpact
-                      ))
-
-            write_to_dict(row, ttype, notes)
-
-
 def late_paychange_action(sD, eD, cursor):
     """
     This function finds late job change actions in SAP among tickets
@@ -691,123 +653,6 @@ def late_paychange_action(sD, eD, cursor):
                   ))
             write_to_dict(row, ttype, notes)               
             
-
-def late_paychange_letters(sD, eD, cursor):
-    """
-    This function finds late job change letters
-    """
-    sql = """SELECT T.ID, T.DateReceived, T.CompleteDocsDate, T.EffectiveDate, 
-             T.CutOffDate, T.EEImpact, T.SignedLetterReceivedOn, 
-             T.NumberOfReminders, E.EEID, E.Forname, 
-             E.Surname, T.LetterReceived, T.SignedLetterRequired, 
-             T.LetterSentOn, R.CauseText, T.SourceID, T.InRejComment   
-             FROM tTracker as T INNER JOIN 
-             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
-             tRootCause as R ON T.RootCause = R.ID
-             WHERE (T.ProcessID IN (395, 396, 397, 347)) AND
-             (T.DateReceived BETWEEN ? AND ?) AND 
-             ((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate) OR 
-             (T.EffectiveDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
-             AND T.SignedLetterReceivedOn IS NOT NULL) OR 
-             (T.CutOffDate < T.SignedLetterReceivedOn AND T.SignedLetterRequired = 1
-             AND T.SignedLetterReceivedOn IS NOT NULL) OR
-             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
-             T.EffectiveDate < GETDATE()) OR
-             (T.SignedLetterRequired = 1 AND T.SignedLetterReceivedOn IS NULL AND 
-             T.CutOffDate < GETDATE()))"""
-    ttype = "Pay Change - Late Submission"
-
-    #grab recordset from DB
-    result = get_DBdata(sql, sD, eD, cursor)
-
-    if result:
-        for row in result:
-             #############################
-            #TEMP STUFF - REMOVE IN PROD
-            if not row.LetterSentOn:
-                LetterSentOn = datetime.datetime(2010, 10, 10)
-            else:
-                LetterSentOn = row.LetterSentOn
-
-            if not row.SignedLetterReceivedOn:
-                SignedLetterReceivedOn = datetime.datetime(2010, 10, 10)
-            else:
-                SignedLetterReceivedOn = row.SignedLetterReceivedOn
-
-            ###################################
-            
-            source = get_source_string(row.SourceID)
-            compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
-            dateRec = get_docsDate(row.CompleteDocsDate)
-            
-            #create statuses of signed letter received back
-            #basing on date conditions
-            if row.LetterReceived == 1 and  row.SignedLetterReceivedOn:
-                sigLetter = ('%s%s' % ('Signed letter received on ',
-                                             #row.SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-                                            SignedLetterReceivedOn.strftime('%d/%m/%Y')))
-                sigLetterRec = True
-            elif row.LetterReceived == 1 and row.SignedLetterRequired == 1 and not row.SignedLetterReceivedOn:
-                sigLetter = 'Signed letter not yet returned'
-                sigLetterRec = True
-            elif row.LetterReceived == 0:
-                sigLetterRec = False
-                
-            #create statuses for  letter sent, offer pack sent based on dates    
-            if row.LetterReceived == 1:
-                letterSent = ('%s%s' % ('Letter sent on ',
-                                        #row.LetterSentOn.strftime('%d/%m/%Y')))
-                                        LetterSentOn.strftime('%d/%m/%Y')))
-            else:
-                letterSent = 'Letter not sent yet'
-                
-            #calculate amount of days late basing on currenn document and contract statuses
-            #and on docs submission date
-            if row.CompleteDocsDate > row.CutOffDate:
-                days = day_diff(row.CompleteDocsDate, row.CutOffDate)
-            elif row.CompleteDocsDate > row.EffectiveDate:
-                days = day_diff(row.CompleteDocsDate, row.EffectiveDate)
-
-            if row.SignedLetterReceivedOn:    
-                if row.SignedLetterReceivedOn > row.CutOffDate:
-                    days = day_diff(row.SignedLetterReceivedOn, row.CutOffDate)
-                elif row.SignedLetterReceivedOn > row.EffectiveDate:
-                    days = day_diff(row.SignedLetterReceivedOn, row.EffectiveDate)
-
-            #create notes field
-            if sigLetterRec:
-                notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s.\n%s%s.\n%s%d.\n%s."' %
-                         ('Pay change effective on ',
-                          row.EffectiveDate.strftime('%d/%m/%Y'),
-                          source,
-                          row.DateReceived.strftime('%d/%m/%Y'),
-                          compDocs,
-                          letterSent,
-                          sigLetter,
-                          'Request should be submitted by ',
-                          row.CutOffDate.strftime('%d/%m/%Y'),
-                          'Days late for payroll cut off: ',
-                          days,
-                          row.EEImpact
-                      ))
-            else:
-                notes = ('"%s%s.\n%s%s.\n%s.\n%s.\n%s%s.\n%s%d.\n%s."' %
-                         ('Pay change effective on ',
-                          row.EffectiveDate.strftime('%d/%m/%Y'),
-                          source,
-                          row.DateReceived.strftime('%d/%m/%Y'),
-                          compDocs,
-                          letterSent,
-                          'Request should be submitted by ',
-                          row.CutOffDate.strftime('%d/%m/%Y'),
-                          'Days late for payroll cut off: ',
-                          days,
-                          row.EEImpact
-                      ))
-
-            write_to_dict(row, ttype, notes)
-
             
 def late_hire(sD, eD, cursor):
     """
@@ -1047,7 +892,9 @@ def runReport(sD, eD):
         #Job Changes action tickets
         late_jobchange_action(sD, eD, cursor)
         #Job Changes letter tickets
-        late_jobchange_letters(sD, eD, cursor)
+        scope = '363, 385, 386, 400, 410, 412, 413'
+        procname = "Job Change"
+        late_by_letters(sD, eD, scope, procname, cursor)
 
         #New Hire section
         late_hire(sD, eD, cursor)
@@ -1058,9 +905,8 @@ def runReport(sD, eD):
         scope = '327, 328, 329'
         late_paychange_action(sD, eD, cursor)
         #Pay Changes letter tickets
-        procname = 'Pay Change - Late Submission'
         scope = '395, 396, 397, 347'
-        late_paychange_letters(sD, eD, cursor)
+        late_by_letters(sD, eD, scope, procname, cursor)
 
 
         #Termination section
