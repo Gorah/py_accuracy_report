@@ -374,80 +374,49 @@ def ret_from_loa_by_dates(sD, eD, cursor):
                 write_to_dict(row, ttype, notes)
 
     
-
-def late_by_dates_missingdocs(sD, eD, scope, procname, cursor):
+def late_by_action(sD, eD, scope, procname, cursor):
     """
-    This generic function collects data about specified category and
-    sends records with late tickets to be added to dictionary.
-
-    It takes into consideration action in SAP tickets with complete
-    documentation not yet received.
+    This function finds late job change actions in SAP among tickets
     """
     sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
              T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
+             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , R.CauseText,
+             T.SourceID, T.InRejComment 
              FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
-             WHERE (T.ProcessID IN (""" + scope + """)) AND 
-             (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN (1, 9)) 
-             AND ((T.EffectiveDate < T.DateReceived) OR
-             (T.CutOffDate < T.DateReceived)) AND T.CompleteDocsDate
-             IS NULL"""
-    notes_name = procname + ' effective '
-    ttype = procname + ' - Late Submission'
-    docs_rec = '.\nComplete info still pending'
-    notes_override = None
+             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
+             tRootCause as R ON T.RootCause = R.ID
+             WHERE (T.ProcessID IN (""" + scope + """) AND 
+             T.DateReceived BETWEEN ? AND ?) AND  
+             (((T.EffectiveDate < T.CompleteDocsDate) OR
+             (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
+             OR ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived) AND
+             T.CompleteDocsDate IS NULL))"""
+    ttype = procname + " - Late Submission"
 
     #getting recordset from DB
     result = get_DBdata(sql, sD, eD, cursor)
 
-    #if there are any records in the recordset each row is sent to be
-    #added to dictionary
+    
     if result:
         for row in result:
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False, True)
-             
-             
-def late_by_dates_completedoc(sD, eD, scope, procname, cursor):
-    """
-    This generic function collects data about specified category and
-    sends records with late tickets to be added to dictionary.
+            source = get_source_string(row.SourceID)
+            compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
+            dateRec = get_docsDate(row.CompleteDocsDate)
 
-    It takes into consideration action in SAP tickets complete
-    documentation received.
-    """
-    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
-             T.CutOffDate, T.EEImpact, T.DocsReceivedDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname 
-             FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID
-             WHERE (T.ProcessID IN (""" + scope + """)) AND 
-             (T.DateReceived BETWEEN ? AND ?) AND (T.CurrentStatus IN (1, 9)) 
-             AND ((T.EffectiveDate < T.DocsReceivedDate) OR
-             (T.CutOffDate < T.DocsReceivedDate)) AND T.DocsReceivedDate
-             IS NOT NULL"""
-    notes_name = procname + ' effective '
-    ttype = procname + ' - Late Submission'
-    notes_override = None
-
-    #getting recordset from DB
-    result = get_DBdata(sql, sD, eD, cursor)
-
-    #if there are any records in the recordset each row is sent to be
-    #added to dictionary
-    if result:
-        for row in result:
-            docs_rec = '.\nComplete info received on ' + row.DocsReceivedDate.strftime('%d/%m/%Y')
-            notes_override = ('"%s%s.\n%s%s.\n%s%s.\n%s%d.\n%s"' %(notes_name,
-                                                                   row.EffectiveDate.strftime('%d/%m/%Y'),
-                                                                   'Complete info received on ',
-                                                                   row.DocsReceivedDate.strftime('%d/%m/%Y'),
-                                                                   'Request should be submitted by ',
-                                                                   row.CutOffDate.strftime('%d/%m/%Y'),
-                                                                   'Days late for payroll cut off: ',
-                                                                   day_diff(row.DocsReceivedDate, row.CutOffDate),
-                                                                   row.EEImpact))
-            write_to_dict(row, ttype, notes_name, docs_rec, notes_override, False)
+            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %
+                     (procname + ' effective on ',
+                      row.EffectiveDate.strftime('%d/%m/%Y'),
+                      source,
+                      row.DateReceived.strftime('%d/%m/%Y'),
+                      compDocs,
+                      'Request should be submitted by ',
+                      row.CutOffDate.strftime('%d/%m/%Y'),
+                      'Days late for payroll cut off: ',
+                      day_diff(dateRec, row.CutOffDate),
+                      row.EEImpact
+                  ))
+            write_to_dict(row, ttype, notes) 
+            
 
 
 def late_by_letters(sD, eD, scope, procname, cursor):
@@ -563,95 +532,7 @@ def late_by_letters(sD, eD, scope, procname, cursor):
                          row.EEImpact
                      ))
 
-           write_to_dict(row, ttype, notes)
-
-
-def late_jobchange_action(sD, eD, cursor):
-    """
-    This function finds late job change actions in SAP among tickets
-    """
-    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
-             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , R.CauseText,
-             T.SourceID, T.InRejComment 
-             FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
-             tRootCause as R ON T.RootCause = R.ID
-             WHERE (T.ProcessID IN (315, 331, 323, 335, 340, 339) AND 
-             T.DateReceived BETWEEN ? AND ?) AND  
-             (((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
-             OR ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived) AND
-             T.CompleteDocsDate IS NULL))"""
-    ttype = "Job Change - Late Submission"
-
-    #getting recordset from DB
-    result = get_DBdata(sql, sD, eD, cursor)
-
-    
-    if result:
-        for row in result:
-            source = get_source_string(row.SourceID)
-            compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
-            dateRec = get_docsDate(row.CompleteDocsDate)
-
-            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %
-                     ('Job change effective on ',
-                      row.EffectiveDate.strftime('%d/%m/%Y'),
-                      source,
-                      row.DateReceived.strftime('%d/%m/%Y'),
-                      compDocs,
-                      'Request should be submitted by ',
-                      row.CutOffDate.strftime('%d/%m/%Y'),
-                      'Days late for payroll cut off: ',
-                      day_diff(dateRec, row.CutOffDate),
-                      row.EEImpact
-                  ))
-            write_to_dict(row, ttype, notes)   
-
-
-def late_paychange_action(sD, eD, cursor):
-    """
-    This function finds late job change actions in SAP among tickets
-    """
-    sql = """SELECT T.ID, T.DateReceived, T.EffectiveDate,
-             T.CutOffDate, T.EEImpact, T.CompleteDocsDate,
-             T.NumberOfReminders, E.EEID, E.Forname, E.Surname , R.CauseText,
-             T.SourceID, T.InRejComment 
-             FROM tTracker as T INNER JOIN
-             tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
-             tRootCause as R ON T.RootCause = R.ID
-             WHERE (T.ProcessID IN (327, 328, 329) AND 
-             T.DateReceived BETWEEN ? AND ?) AND  
-             (((T.EffectiveDate < T.CompleteDocsDate) OR
-             (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
-             OR ((T.EffectiveDate < T.DateReceived OR T.CutOffDate < T.DateReceived) AND
-             T.CompleteDocsDate IS NULL))"""
-    ttype = "Pay Change - Late Submission"
-
-    #getting recordset from DB
-    result = get_DBdata(sql, sD, eD, cursor)
-
-    
-    if result:
-        for row in result:
-            source = get_source_string(row.SourceID)
-            compDocs = get_compDocsString(row.CompleteDocsDate, row.InRejComment)
-            dateRec = get_docsDate(row.CompleteDocsDate)
-
-            notes = ('"%s%s.\n%s%s.\n%s.\n%s%s.\n%s%d.\n%s"' %
-                     ('Pay change effective on ',
-                      row.EffectiveDate.strftime('%d/%m/%Y'),
-                      source,
-                      row.DateReceived.strftime('%d/%m/%Y'),
-                      compDocs,
-                      'Request should be submitted by ',
-                      row.CutOffDate.strftime('%d/%m/%Y'),
-                      'Days late for payroll cut off: ',
-                      day_diff(dateRec, row.CutOffDate),
-                      row.EEImpact
-                  ))
-            write_to_dict(row, ttype, notes)               
+           write_to_dict(row, ttype, notes)                 
             
             
 def late_hire(sD, eD, cursor):
@@ -890,10 +771,11 @@ def runReport(sD, eD):
 
         #Job Change section
         #Job Changes action tickets
-        late_jobchange_action(sD, eD, cursor)
+        procname = "Job Change"
+        scope = "315, 331, 323, 335, 340, 339"
+        late_by_action(sD, eD, scope, procname, cursor)
         #Job Changes letter tickets
         scope = '363, 385, 386, 400, 410, 412, 413'
-        procname = "Job Change"
         late_by_letters(sD, eD, scope, procname, cursor)
 
         #New Hire section
@@ -903,7 +785,7 @@ def runReport(sD, eD):
         procname = 'Pay Change'
         #Pay Changes action tickets
         scope = '327, 328, 329'
-        late_paychange_action(sD, eD, cursor)
+        late_by_action(sD, eD, scope, procname, cursor)
         #Pay Changes letter tickets
         scope = '395, 396, 397, 347'
         late_by_letters(sD, eD, scope, procname, cursor)
