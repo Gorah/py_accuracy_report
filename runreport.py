@@ -647,7 +647,7 @@ def late_termination(sD, eD, cursor):
              FROM tTracker as T INNER JOIN
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN
              tRootCause as R ON T.RootCause = R.ID
-             WHERE (T.ProcessID IN (327, 328, 329) AND 
+             WHERE (T.ProcessID IN (336, 337, 338) AND 
              T.DateReceived BETWEEN ? AND ?) AND  
              (((T.EffectiveDate < T.CompleteDocsDate) OR
              (T.CutOffDate < T.CompleteDocsDate) AND T.CompleteDocsDate IS NOT NULL)
@@ -692,7 +692,9 @@ def termination_checklist_check(cursor):
              FROM tTracker as T INNER JOIN 
              tMCBCEmployee as E ON T.EeID = E.ID INNER JOIN 
              tRootCause as R ON T.RootCause = R.ID
-             WHERE (T.ProcessID = 417) AND (T.LetterReceived = 0)"""
+             WHERE (T.ProcessID = 417) AND (T.LetterReceived = 0)
+             AND (T.EffectiveDate < GETDATE()) AND (T.CurrentStatus <> 1)"""
+
     ttype = 'Termination -  No Termination Checklist submitted'
     
     #getting recordset from DB
